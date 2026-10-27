@@ -26,7 +26,7 @@ Same product, same numbers. The read is deterministic.
 | 14 | Pivot | One-star reviews turned into ad angles |
 | 15 | Oracle | Conservative / base / optimistic 30-day P&L |
 
-Works as a desk for any storefront: Shopify, WooCommerce, BigCommerce, Magento, Wix, Squarespace, or a custom API.
+Works as a desk for any business type: storefront, salon, restaurant, service, or custom operation. Draft-only by default.
 
 ## Quick start
 
@@ -62,6 +62,42 @@ docker run -p 8000:8000 vektorflow-15
 4. **Live Ops** is today’s floor: Rook’s book, Arbiter’s tape, Aegis’s queue, ViralDet’s heat.
 
 Individual desks are on the left rail if you only need one agent.
+
+## Mission receipts
+
+Every mission returns an objective, the dynamic 15-step plan, draft evidence, the
+Aegis Gate decision, pending Wallace approval, risk, and a receipt. A visible Pivot
+replan follows the blocked external-sentiment lookup.
+
+```bash
+curl -s localhost:8000/api/v1/receipt/<mission_id>
+```
+
+A real mission returns its own staged receipt. An unknown id returns `404`.
+
+## Draft-only extensions
+
+- `POST /api/v1/ad-draft/pollinations` — organic Pollinations draft, max 1024x1088. Not Muse Image, never served.
+- `POST /api/v1/receptionist/draft` — Aegis receptionist draft. No new agent, never sent.
+- `POST /api/v1/layout/preview` — preview only. No rewrite, CMS write, or deploy.
+- `GET /api/v1/mcp/registry` — local metadata only. No MCP server contacted.
+- `GET|POST /api/v1/kill-switch` — stop or restore draft tools.
+
+`meta_served` and `image_served` stay `false` until credits land and Wallace
+second-approves an exact call.
+
+## Persistence (Hackathon 2026 only)
+
+Receipts persist only to the new Hackathon 2026 Supabase project, using:
+
+```bash
+HACKATHON_SUPABASE_URL=
+HACKATHON_SUPABASE_KEY=
+```
+
+Generic `SUPABASE_URL` / `SUPABASE_KEY` are ignored on purpose. The schema is in
+`supabase/migrations/20261027_hackathon_2026.sql` with RLS enabled. Leave the
+variables blank to keep receipts in process memory only.
 
 ## Security
 
