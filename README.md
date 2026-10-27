@@ -6,6 +6,28 @@ Cerebrum Command is a working command center. Brief a product and the table runs
 
 Same product, same numbers. The read is deterministic.
 
+## Reused vs. new (Mission Command dashboard branch)
+
+This branch (`opencode/mission-command-dashboard`) is an upgrade of the existing
+Cerebrum Command dashboard. It does **not** claim the pre-existing board as new work.
+
+**Reused from main `5bace1d` (pre-existing, not new):**
+
+- Cerebrum Command shell: layout, left agent rail, top nav, ticker, boot overlay, `static/css/app.css`, `static/js/app.js`.
+- All 15 agents and the mission loop in `vektorflow/agents.py`, plus `/api/v1/mission`, `/api/v1/receipt/{mission_id}`, `/api/v1/kill-switch`, and `/health` in `vektorflow/app.py`.
+- Draft-only extensions, persistence layer, Supabase migration, and existing tests.
+- The Launch, Live Ops, and Dossier views.
+
+**New in this branch:**
+
+- `static/js/mission_command.js` — one-sentence mission brief driving the live mission API, then rendering the dynamic 15-step plan, draft evidence, the visible Pivot failed/replanned attempts, the Aegis Gate, the pending Wallace approval, and the receipt (`mission_id`, `plan`, `evidence`, `meta_served`, `image_served`).
+- Mission Command view in `static/index.html` (title/header rebrand to **VektorMind 2.0 — Mission Command**), with the Cerebrum layout retained.
+- Kill-switch ON/OFF control in the UI that probes `/api/v1/mission` for `503` when engaged and `200` when released.
+- Mission Command styles appended to `static/css/app.css`, plus the dashboard assertion update in `tests/test_api.py`.
+- This README section.
+
+No Shopify integration, no VektorFlow15xr call, no Meta call. Draft-only.
+
 ## The table
 
 | # | Agent | Desk |

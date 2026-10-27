@@ -409,9 +409,127 @@ td { padding: 10px 8px; border-bottom: 1px solid #1a2130; }
 .boot-bar { height: 3px; background: #1a2230; border-radius: 99px; overflow: hidden; }
 .boot-bar span { display: block; height: 100%; width: 0; background: var(--mint); transition: width 0.2s; }
 
+.mc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.mc-head h1 { margin-bottom: 6px; }
+.mc-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 230px;
+}
+.mc-controls .hint { text-align: right; max-width: 32ch; }
+#mc-kill {
+  border-color: var(--line-2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+#mc-kill.mc-armed {
+  border-color: var(--rose);
+  color: var(--rose);
+  background: var(--rose-dim);
+}
+.mc-brief { margin-bottom: 14px; }
+.mc-brief .btn.primary { max-width: 260px; }
+.mc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.mc-card { min-width: 0; }
+.mc-card h3 { font-size: 1.05rem; }
+.mc-plan, .mc-evidence {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 440px;
+  overflow: auto;
+}
+.mc-step {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+}
+.mc-step.is-pivot { border-color: var(--amber); background: var(--amber-dim); }
+.mc-num { font-family: var(--mono); font-size: 11px; color: var(--faint); padding-top: 2px; }
+.mc-step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mc-step-body b { font-size: 13.5px; }
+.mc-step-body em { color: var(--muted); font-style: normal; font-size: 13px; }
+.mc-step-body small { color: var(--faint); font-size: 11.5px; }
+.mc-attempts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.mc-attempt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+}
+.mc-attempt.failed { border-color: var(--rose); color: var(--rose); background: var(--rose-dim); }
+.mc-attempt.completed { border-color: var(--mint); color: var(--mint); background: var(--mint-dim); }
+.mc-replan { color: var(--amber) !important; }
+.mc-evidence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+  font-size: 13px;
+}
+.mc-evidence-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mc-evidence-item small { color: var(--faint); font-size: 11.5px; }
+.mc-gate-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.mc-mono { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.mc-cards { margin: 12px 0; }
+.mc-approval {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.mc-approval p { flex-basis: 100%; margin: 0; }
+.mc-kv {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 13px;
+}
+.mc-kv span { color: var(--faint); font-size: 12px; }
+.mc-kv code { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.mc-kv b.good { color: var(--mint); }
+.mc-kv b.bad { color: var(--rose); }
+.mc-status { font-size: 13px; margin: 0; }
+.mc-status-bad { color: var(--rose); }
+.mc-status-good { color: var(--mint); }
+
 @media (max-width: 1100px) {
   .grid-15 { grid-template-columns: repeat(3, 1fr); }
-  .hero, .split, .ops-grid { grid-template-columns: 1fr; }
+  .hero, .split, .ops-grid, .mc-grid { grid-template-columns: 1fr; }
+  .mc-controls { align-items: flex-start; }
+  .mc-controls .hint { text-align: left; }
 }
 @media print {
   .top, .rail, .ticker, .boot, .tabs, .hero-actions, .btn { display: none !important; }
