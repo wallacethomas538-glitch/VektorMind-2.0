@@ -1,132 +1,61 @@
-# VEKTORFLOW-15
+# VektorMind 2.0
 
-**Autonomous AI e-commerce operating system — 15 specialized agents, one launch decision.**
+## Proposed GitHub description (one line)
+VektorMind 2.0 — upgrade of VektorFlow's 15-agent coordination layer to Muse Spark dynamic planning + Muse Image ad creatives, for solo-seller store operations, with every ad and action staged for owner approval.
 
-Cerebrum Command is a working command center. Brief a product and the table runs scout, supply, store, creative, media, support, price, compliance, voice, virality, competitor intel, bundles, positioning, and a 30-day P&L — then Cerebrum issues **LAUNCH**, **ITERATE**, or **KILL**.
+## What this is
+A solo seller types one sentence, and a 15-agent team runs the play — in draft only, staged for the owner's approval. Nothing is published, sent, priced live, or moved for money without the owner's tap.
 
-Same product, same numbers. The read is deterministic.
+Live demo: https://vektormind-2-0.onrender.com/
+Live mission receipt (example, verified Oct 27): VF-52983-ac7a6516f6 — staged_for_approval, plan 15 steps, evidence 15 draft items, Pivot replanned, Aegis Gate passed (risk 2), meta_served false, image_served false.
 
-## Reused vs. new (Mission Command dashboard branch)
+## The submitted pitch, in plain terms
+Upgrade VektorFlow's coordination layer — the system that breaks missions into subtasks, assigns them across 15 specialist agents, and synthesizes their outputs — to run on Muse Spark's agentic reasoning. Today that orchestration is hand-coded state machines; with Muse Spark, VektorMind dynamically plans multi-step store operations (for example: "find trending car-care products, price them competitively, generate ads, and stage them for my approval"), adapting in real time when subtasks fail or new information arrives. Muse Image auto-generates product ad creatives directly in the agent pipeline — from product sourcing to staged ad, with the owner approving before anything publishes.
 
-This branch (`opencode/mission-command-dashboard`) is an upgrade of the existing
-Cerebrum Command dashboard. It does **not** claim the pre-existing board as new work.
+**Honesty label:** Muse Spark and Muse Image are integration targets in this build. Until a real, owner-approved call returns HTTP 200, the demo labels their outputs as staged targets, not live Meta results. No live Meta generation call has been made as of Oct 27, 2026.
 
-**Reused from main `5bace1d` (pre-existing, not new):**
+## How a mission runs (live, draft-only)
+1. One sentence in — Mission Command dashboard.
+2. Dynamic 15-step plan — Hawk, Smaug, Architect, DaVinci, Rook, Aegis, Arbiter, Sentinel, Echo, Cerebrum, ViralDet, Shadow, Bundler, Pivot, Oracle.
+3. Draft evidence — 15 draft items, no external calls, no provider calls.
+4. Pivot replan, visible — when an external source is not contacted in draft-only mode, Pivot fails that attempt, then replans with local intelligence.
+5. Aegis Gate — generic security gate, risk score, blocked actions: publish_live, price_live, money_move, send_external_message, call_provider, deploy_live.
+6. Staged for Wallace approval — approval pending, approver Wallace, final tap.
+7. Receipt — mission_id, plan, evidence, meta_served, image_served, kill_switch state.
 
-- Cerebrum Command shell: layout, left agent rail, top nav, ticker, boot overlay, `static/css/app.css`, `static/js/app.js`.
-- All 15 agents and the mission loop in `vektorflow/agents.py`, plus `/api/v1/mission`, `/api/v1/receipt/{mission_id}`, `/api/v1/kill-switch`, and `/health` in `vektorflow/app.py`.
-- Draft-only extensions, persistence layer, Supabase migration, and existing tests.
-- The Launch, Live Ops, and Dossier views.
+Kill switch: ON blocks missions with 503, OFF allows them with 200. Tested locally Oct 27 (32 tests passed) and live on the dashboard.
 
-**New in this branch:**
+## What is new vs. not new (hackathon honesty)
+**New in the Oct 26–Nov 4 window:**
+- Muse Spark dynamic planning layer (planner label in the mission receipt; live Meta call pending credits + owner approval)
+- Mission loop: objective → 15-step plan → evidence → Aegis Gate → owner approval pending → receipt
+- Mission Command dashboard: one-sentence brief, plan, evidence, Pivot replan, Aegis Gate, approval, receipt, kill-switch control
+- Boot overlay fix, Python 3.14 dependency fix, new Render service VektorMind-2.0, new Supabase project Hackathon 2026
 
-- `static/js/mission_command.js` — one-sentence mission brief driving the live mission API, then rendering the dynamic 15-step plan, draft evidence, the visible Pivot failed/replanned attempts, the Aegis Gate, the pending Wallace approval, and the receipt (`mission_id`, `plan`, `evidence`, `meta_served`, `image_served`).
-- Mission Command view in `static/index.html` (title/header rebrand to **VektorMind 2.0 — Mission Command**), with the Cerebrum layout retained.
-- Kill-switch ON/OFF control in the UI that probes `/api/v1/mission` for `503` when engaged and `200` when released.
-- Mission Command styles appended to `static/css/app.css`, plus the dashboard assertion update in `tests/test_api.py`.
-- This README section.
+**Not new — reused, not claimed as new work:**
+- VektorFlow-15 code base (cloned, pre-existing): FastAPI app, 15-agent roster, Cerebrum Command shell, mission loop structure
+- 15-agent concept, Store Playbook, draft-only extensions structure
+- Oct 26 5-agent / any-business rebuild: reference only, not the submission
+- VektorFlow15xr backend, Render service, and Supabase: frozen backup only, not touched, not wired to this build
+- VektorAegis (separate project, Codeberg): not named, credited, or used in this submission; the gate in this code is the generic Aegis Gate
 
-No Shopify integration, no VektorFlow15xr call, no Meta call. Draft-only.
+## Stack and accounts (new accounts only)
+- GitHub: wallacethomas538-glitch/VektorMind-2.0 (public)
+- Render: VektorMind-2.0 (new service, Free plan, Oregon)
+- Supabase: Hackathon 2026 (new project, ca-central-1) — Render env HACKATHON_SUPABASE_URL / HACKATHON_SUPABASE_KEY only; generic SUPABASE_URL / SUPABASE_ANON_KEY are ignored by the code, anon is not used
+- No Shopify live store, API, products, orders, or writes in this build
+- No VektorFlow15xr calls, no Meta generation calls yet
 
-## The table
+## Status as of Oct 27, 2026
+- Main: 6d9b054, Render deploy live, /health 200, persistence ready (Supabase)
+- Live mission VF-52983-ac7a6516f6 verified via /api/v1/receipt
+- Meta $150 credits: not yet in dev.meta.ai Billing — recheck Oct 28, claim deadline Nov 4, 9:00 PM ET
+- Demo video (3 minutes): not recorded yet — must show a user interacting with a working mission, new work only
+- Submission: via Cerebral Valley, due Nov 4, 2026, 9:00 PM ET
 
-| # | Agent | Desk |
-|---|-------|------|
-| 01 | Hawk | Product scout, SEO copy, opportunity score |
-| 02 | Smaug | Supplier match, landed cost, negotiation script |
-| 03 | Architect | Brand, palette, store blueprint, FAQ |
-| 04 | DaVinci | Hooks, 18s script, headlines, UGC prompt |
-| 05 | Rook | Scale / maintain / kill on ROAS |
-| 06 | Aegis | Support intents, review tone, abandoned-cart drip |
-| 07 | Arbiter | Floor, charm price, competitor tape |
-| 08 | Sentinel | GDPR/CCPA score, policy excerpt, checklist |
-| 09 | Echo | Voice casting and runtime for ad reads |
-| 10 | Cerebrum | Assembles the table. One verdict. |
-| 11 | ViralDet | Platform velocity and launch window |
-| 12 | Shadow | Competitor hooks, weak spot, counter-moves |
-| 13 | Bundler | Starter / Kit / Deluxe with AOV lift |
-| 14 | Pivot | One-star reviews turned into ad angles |
-| 15 | Oracle | Conservative / base / optimistic 30-day P&L |
-
-Built for solo-seller store operations. Draft-only by default.
-
-## Quick start
-
-```bash
-python -m pip install -r requirements.txt
-python -m vektorflow
-```
-
-Open [http://localhost:8000](http://localhost:8000). Demo mode is on by default.
-
-```bash
-# lock mutating endpoints in production
-export VEKTORFLOW_DEMO=false
-export VEKTORFLOW_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
-```
-
-Interactive API: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-```bash
-pytest
-```
-
-```bash
-docker build -t vektorflow-15 .
-docker run -p 8000:8000 vektorflow-15
-```
-
-## How a mission works
-
-1. Open **Launch** and brief the product (name, category, price, cost, daily ad budget).
-2. Cerebrum wakes the table in order. Each agent files a one-line finding.
-3. The **dossier** is the full read — verdict, conviction, and every desk report.
-4. **Live Ops** is today’s floor: Rook’s book, Arbiter’s tape, Aegis’s queue, ViralDet’s heat.
-
-Individual desks are on the left rail if you only need one agent.
-
-## Mission receipts
-
-Every mission returns an objective, the dynamic 15-step plan, draft evidence, the
-Aegis Gate decision, pending Wallace approval, risk, and a receipt. A visible Pivot
-replan follows the blocked external-sentiment lookup.
-
-```bash
-curl -s localhost:8000/api/v1/receipt/<mission_id>
-```
-
-A real mission returns its own staged receipt. An unknown id returns `404`.
-
-## Draft-only extensions
-
-- `POST /api/v1/ad-draft/pollinations` — organic Pollinations draft, max 1024x1088. Not Muse Image, never served.
-- `POST /api/v1/receptionist/draft` — Aegis receptionist draft. No new agent, never sent.
-- `POST /api/v1/layout/preview` — preview only. No rewrite, CMS write, or deploy.
-- `GET /api/v1/mcp/registry` — local metadata only. No MCP server contacted.
-- `GET|POST /api/v1/kill-switch` — stop or restore draft tools.
-
-`meta_served` and `image_served` stay `false` until credits land and Wallace
-second-approves an exact call.
-
-## Persistence (Hackathon 2026 only)
-
-Receipts persist only to the new Hackathon 2026 Supabase project, using:
-
-```bash
-HACKATHON_SUPABASE_URL=
-HACKATHON_SUPABASE_KEY=
-```
-
-Generic `SUPABASE_URL` / `SUPABASE_KEY` are ignored on purpose. The schema is in
-`supabase/migrations/20261027_hackathon_2026.sql` with RLS enabled. Leave the
-variables blank to keep receipts in process memory only.
-
-## Security
-
-- `VEKTORFLOW_DEMO=true` (default) keeps the command center usable without a key.
-- With demo off, mutating `/api/v1/*` routes require `X-API-Key`.
-- `/`, `/health`, `/docs`, and `/static` stay public so the board can load.
-
-## License
-
-Apache 2.0. Copyright 2026 Wallace J Thomas III — VEKTORFLOW.
+## Quick start (for judges)
+1. Open https://vektormind-2-0.onrender.com/ — wait ~2 seconds for the boot screen to clear.
+2. On Mission Command, type one sentence, for example: "Launch a dorm-safe candle warmer lamp at $44.99 for solo sellers"
+3. Submit, watch the 15-step plan, draft evidence, Pivot replan, Aegis Gate, and the receipt staged for approval.
+4. Check the receipt: https://vektormind-2-0.onrender.com/api/v1/receipt/VF-52983-ac7a6516f6
+5. Check health: https://vektormind-2-0.onrender.com/health
