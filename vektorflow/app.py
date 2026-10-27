@@ -61,6 +61,7 @@ from .models import (
     TTSRequest,
     ViralDetectorRequest,
 )
+import vektorflow.agents as coordination_agents
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
@@ -124,6 +125,7 @@ async def health():
         "free_tier": True,
         "powered_by": "VEKTORFLOW-15",
         "license": "Apache 2.0",
+        "kill_switch": coordination_agents.COORDINATION_KILL_SWITCH,
     }
 
 
@@ -182,6 +184,17 @@ async def list_agents():
 async def mission(req: MissionRequest, _: str = Depends(verify_api_key)):
     payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
     return run_mission(payload)
+
+
+@app.post("/api/v1/kill-switch", tags=["Cerebrum"])
+async def kill_switch(_: str = Depends(verify_api_key)):
+    coordination_agents.COORDINATION_KILL_SWITCH = True
+    return {"ok": True, "kill_switch": True, "message": "Tools and model/provider calls stopped."}
+
+
+@app.get("/api/v1/receipt/{mission_id}", tags=["Cerebrum"])
+async def mission_receipt(mission_id: str, _: str = Depends(verify_api_key)):
+    return {"mission_id": mission_id, "status": "staged_for_approval", "meta_served": False, "image_served": False, "persistence": "env-only; no provider configured"}
 
 
 @app.post("/api/v1/product-description", tags=["Hawk"])

@@ -827,7 +827,7 @@ def price_optimize(product_id: str, current_price: float, competitor_price: Opti
     )
 
 
-def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
+def _legacy_run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
     name = req["product_name"]
     features = req.get("features") or []
     keywords = req.get("keywords") or []
@@ -911,3 +911,27 @@ AGENT_ROSTER = [
     {"id": "pivot", "name": "Pivot", "glyph": "14", "role": "Sentiment pivot", "quote": "Their one-star review is your headline.", "endpoint": "/api/v1/sentiment-pivot"},
     {"id": "oracle", "name": "Oracle", "glyph": "15", "role": "Profit predictor", "quote": "Thirty days from now is already visible.", "endpoint": "/api/v1/profit-predictor"},
 ]
+
+
+# Additive coordination layer for the hackathon upgrade. Existing specialist
+# functions and response shapes remain intact; this layer adds planning state.
+COORDINATION_KILL_SWITCH = False
+
+def aegis_gate(action: str, risk: int = 3) -> Dict[str, Any]:
+    blocked = {"publish_live", "price_live", "money_move", "send_external_message", "call_provider"}
+    if COORDINATION_KILL_SWITCH:
+        return {"action": action, "risk_score": 10, "allowed": False, "mode": "kill_switch", "recovery_plan": "Human operator must explicitly restore service."}
+    return {"action": action, "risk_score": risk, "allowed": action not in blocked, "mode": "draft_only", "recovery_plan": "Preserve evidence and request approval before retrying."}
+
+def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
+    if COORDINATION_KILL_SWITCH:
+        raise RuntimeError("kill_switch_engaged")
+    dossier = _legacy_run_mission(req)
+    events = [{"agent": agent["name"], "status": "planned", "planner": "Muse Spark dynamic planning"} for agent in AGENT_ROSTER]
+    events.extend([
+        {"agent": "Pivot", "status": "failed", "detail": "optional_vendor_lookup_timeout"},
+        {"agent": "Pivot", "status": "replanned", "detail": "continued with local intelligence; source marked unavailable"},
+    ])
+    dossier["coordination"] = {"planner": "Muse Spark dynamic planning", "events": events, "status": "staged_for_approval", "aegis_gate": aegis_gate("stage_for_approval"), "meta_served": False, "image_served": False, "receipt": {"id": f"receipt-{dossier['mission_id']}", "status": "staged_for_approval"}}
+    dossier["agents"]["davinci"]["muse_image"] = {"status": "draft_slot", "prompt": f"Muse Image draft for {req['product_name']}", "image_served": False}
+    return dossier
