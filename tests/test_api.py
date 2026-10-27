@@ -16,7 +16,11 @@ def test_health():
 def test_dashboard_served():
     res = client.get("/")
     assert res.status_code == 200
-    assert "VEKTORFLOW" in res.text
+    assert "VektorMind 2.0" in res.text
+    assert "Mission Command" in res.text
+    assert 'id="mc-form"' in res.text
+    assert 'id="mc-kill"' in res.text
+    assert "/static/js/mission_command.js" in res.text
 
 
 def test_system_roster():
