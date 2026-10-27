@@ -22,6 +22,129 @@
     </div>
   </div>
 
+  <div id="vhub" class="vhub" role="region" aria-label="V Hub">
+    <div class="vhub-scene" aria-hidden="true">
+      <canvas class="vhub-particles" id="vhub-particles"></canvas>
+      <div class="vhub-aurora"></div>
+      <div class="vhub-rings">
+        <span class="vhub-ring vhub-ring--1"></span>
+        <span class="vhub-ring vhub-ring--2"></span>
+        <span class="vhub-ring vhub-ring--3"></span>
+      </div>
+      <div class="vhub-floor"></div>
+      <div class="vhub-hud-panel vhub-hud-panel--left">
+        <p class="vhub-hud-title">Flow core</p>
+        <span class="vhub-hud-bar"><i></i></span>
+        <p class="vhub-hud-row"><b>Draft only</b><em>gated</em></p>
+        <p class="vhub-hud-row"><b>Approval</b><em>Wallace</em></p>
+        <p class="vhub-hud-row"><b>Aegis</b><em>gate</em></p>
+        <span class="vhub-hud-dots"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="vhub-hud-panel vhub-hud-panel--right">
+        <p class="vhub-hud-title">Orbit map</p>
+        <span class="vhub-hud-bar"><i></i></span>
+        <p class="vhub-hud-row"><b>Agents</b><em>15</em></p>
+        <p class="vhub-hud-row"><b>Panels</b><em>6</em></p>
+        <p class="vhub-hud-row"><b>Receipts</b><em>staged</em></p>
+        <span class="vhub-hud-dots"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+    </div>
+    <div class="vhub-shade" aria-hidden="true"></div>
+
+    <header class="vhub-top">
+      <div class="vhub-brand">
+        <img src="/static/img/mark.svg" alt="" width="30" height="30" />
+        <div>
+          <strong>VektorMind 2.0</strong>
+          <span>V Hub</span>
+        </div>
+      </div>
+      <div class="vhub-top-actions">
+        <span class="pill" id="vhub-status-pill">CHECKING</span>
+        <button class="btn ghost tiny" id="vhub-classic" type="button">Classic view</button>
+      </div>
+    </header>
+
+    <div class="vhub-stage" id="vhub-stage">
+      <div class="vhub-orbit" id="vhub-orbit">
+        <button class="vhub-panel" type="button" data-panel="agents">
+          <span class="vhub-panel-glyph">15</span>
+          <span class="vhub-panel-name">Agents</span>
+          <span class="vhub-panel-sub">Table of 15</span>
+        </button>
+        <button class="vhub-panel" type="button" data-panel="llm">
+          <span class="vhub-panel-glyph">LLM</span>
+          <span class="vhub-panel-name">LLM / Muse Spark</span>
+          <span class="vhub-panel-sub">Real status only</span>
+        </button>
+        <button class="vhub-panel" type="button" data-panel="missions">
+          <span class="vhub-panel-glyph">GO</span>
+          <span class="vhub-panel-name">Missions</span>
+          <span class="vhub-panel-sub">Run draft-only</span>
+        </button>
+        <button class="vhub-panel" type="button" data-panel="ops">
+          <span class="vhub-panel-glyph">OPS</span>
+          <span class="vhub-panel-name">Live Ops</span>
+          <span class="vhub-panel-sub">Floor read</span>
+        </button>
+        <button class="vhub-panel" type="button" data-panel="receipts">
+          <span class="vhub-panel-glyph">RC</span>
+          <span class="vhub-panel-name">Receipts</span>
+          <span class="vhub-panel-sub">Staged approvals</span>
+        </button>
+        <button class="vhub-panel" type="button" data-panel="kill">
+          <span class="vhub-panel-glyph">KS</span>
+          <span class="vhub-panel-name">Kill Switch</span>
+          <span class="vhub-panel-sub">Aegis gate</span>
+        </button>
+      </div>
+
+      <div class="vhub-core" aria-hidden="true">
+        <div class="vhub-v-aura"></div>
+        <div class="vhub-v-3d" id="vhub-v-3d">
+          <svg class="vhub-v-svg vhub-v-svg--back" viewBox="0 0 240 260" fill="none">
+            <path class="vhub-v-outline" d="M34 26 L120 236 L206 26 L168 26 L120 148 L72 26 Z" />
+          </svg>
+          <svg class="vhub-v-svg" viewBox="0 0 240 260" fill="none">
+            <defs>
+              <linearGradient id="vhub-v-stroke" x1="34" y1="26" x2="206" y2="236" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#d3dbff" />
+                <stop offset="0.42" stop-color="#8f7bff" />
+                <stop offset="0.72" stop-color="#6d7bff" />
+                <stop offset="1" stop-color="#45e6ff" />
+              </linearGradient>
+              <linearGradient id="vhub-v-fill" x1="120" y1="26" x2="120" y2="236" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#6f5dff" stop-opacity="0.42" />
+                <stop offset="1" stop-color="#45e6ff" stop-opacity="0.12" />
+              </linearGradient>
+            </defs>
+            <path class="vhub-v-fill" d="M34 26 L120 236 L206 26 L168 26 L120 148 L72 26 Z" fill="url(#vhub-v-fill)" />
+            <path class="vhub-v-outline" d="M34 26 L120 236 L206 26 L168 26 L120 148 L72 26 Z" stroke="url(#vhub-v-stroke)" stroke-linejoin="round" />
+            <path class="vhub-v-facets" d="M34 26 L72 26 L120 148 L120 236 Z M206 26 L168 26 L120 148 L120 236 Z M34 26 L120 236 M206 26 L120 236 M72 26 L120 236 M168 26 L120 236 M34 26 L120 148 M206 26 L120 148" stroke="url(#vhub-v-stroke)" stroke-linejoin="round" />
+            <path class="vhub-v-sheen" d="M72 26 L120 148 L168 26" stroke="url(#vhub-v-stroke)" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <p class="vhub-v-label">V Hub</p>
+      </div>
+    </div>
+
+    <p class="vhub-label">3D V core · drawn in HTML/CSS · draft-only surface</p>
+
+    <section class="vhub-section" id="vhub-section" role="dialog" aria-modal="true" aria-labelledby="vhub-section-title" hidden>
+      <div class="vhub-section-card">
+        <header class="vhub-section-head" id="vhub-section-head">
+          <div>
+            <p class="eyebrow" id="vhub-section-eyebrow">V Hub</p>
+            <h2 id="vhub-section-title">Section</h2>
+          </div>
+          <button class="vhub-close" id="vhub-close" type="button" aria-label="Close section and return to V Hub">×</button>
+        </header>
+        <div class="vhub-section-body" id="vhub-section-body"></div>
+        <p class="vhub-section-hint">Push this panel again or tap × to swing back down and resume the rotating V Hub.</p>
+      </div>
+    </section>
+  </div>
+
   <div class="app" id="app">
     <header class="top">
       <div class="brand" data-nav="command">
@@ -32,6 +155,7 @@
         </div>
       </div>
       <nav class="top-nav">
+        <button id="nav-vhub" type="button">V Hub</button>
         <button data-nav="mission-command" class="is-on">Mission Command</button>
         <button data-nav="command">Command</button>
         <button data-nav="mission">Launch</button>
@@ -52,9 +176,6 @@
 
     <main class="stage">
       <section id="view-mission-command" class="view is-on">
-        <div class="flowv-backdrop" aria-hidden="true">
-          <video class="flowv-video" src="/static/video/flow-v-backdrop.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        </div>
         <div class="mc-head">
           <div>
             <p class="eyebrow">VektorMind 2.0</p>
@@ -123,8 +244,6 @@
             <div id="mc-receipt"><p class="hint">No receipt issued yet.</p></div>
           </div>
         </div>
-
-        <p class="flowv-note">Flow V backdrop — pre-existing Flow asset, decorative only, not Muse Image, not an ad creative</p>
       </section>
 
       <section id="view-command" class="view">
@@ -235,5 +354,6 @@
 
   <script src="/static/js/app.js"></script>
   <script src="/static/js/mission_command.js"></script>
+  <script src="/static/js/vhub.js"></script>
 </body>
 </html>
