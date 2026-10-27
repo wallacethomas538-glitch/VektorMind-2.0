@@ -426,7 +426,7 @@ def default_competitors(product: Dict[str, Any]) -> List[Dict[str, Any]]:
         ("Etsy Maker Co", "etsy", 0.18, 4.99, 8),
         ("TikTok Shop #1", "tiktok", -0.04, 2.99, 9),
         ("Walmart Marketplace", "walmart", -0.08, 0, 4),
-        ("Niche DTC Brand", "shopify", 0.22, 0, 5),
+        ("Niche DTC Brand", "dtc", 0.22, 0, 5),
     ]
     out = []
     for name, platform, delta, ship, days in names:

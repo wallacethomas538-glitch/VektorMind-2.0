@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__
 from .agents import (
     AGENT_ROSTER,
+    KillSwitchEngaged,
     aegis_cart,
     aegis_chat,
     aegis_review,
@@ -27,6 +28,7 @@ from .agents import (
     echo,
     echo_presets,
     forecast,
+    get_receipt,
     hawk,
     oracle,
     pivot,
@@ -38,6 +40,7 @@ from .agents import (
     smaug,
     viral,
 )
+from .drafts import layout_preview, mcp_registry, pollinations_ad_draft, receptionist_draft
 from .intelligence import analyze_product, default_campaigns, seed_for
 from .models import (
     AdCampaign,
@@ -49,11 +52,15 @@ from .models import (
     ComplianceRequest,
     CreativeRequest,
     ForecastRequest,
+    KillSwitchRequest,
+    LayoutPreviewRequest,
     MissionRequest,
+    PollinationsAdDraftRequest,
     PriceRequest,
     PricingRequest,
     Product,
     ProfitPredictorRequest,
+    ReceptionistDraftRequest,
     Review,
     SentimentPivotRequest,
     StoreBuildRequest,
@@ -61,6 +68,7 @@ from .models import (
     TTSRequest,
     ViralDetectorRequest,
 )
+from .persistence import PersistenceError
 import vektorflow.agents as coordination_agents
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -125,7 +133,11 @@ async def health():
         "free_tier": True,
         "powered_by": "VEKTORFLOW-15",
         "license": "Apache 2.0",
-        "kill_switch": coordination_agents.COORDINATION_KILL_SWITCH,
+        "kill_switch": coordination_agents.kill_switch_state(),
+        "draft_only": True,
+        "meta_served": False,
+        "image_served": False,
+        "persistence": coordination_agents.persistence_status(),
     }
 
 
@@ -180,21 +192,112 @@ async def list_agents():
     return {"agents": AGENT_ROSTER, "count": len(AGENT_ROSTER)}
 
 
+def _ensure_tools_running() -> None:
+    if coordination_agents.kill_switch_state():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "kill_switch_engaged",
+                "message": "Kill switch is engaged. Tools and model/provider calls are stopped.",
+            },
+        )
+
+
 @app.post("/api/v1/mission", tags=["Cerebrum"])
 async def mission(req: MissionRequest, _: str = Depends(verify_api_key)):
     payload = req.model_dump() if hasattr(req, "model_dump") else req.dict()
-    return run_mission(payload)
+    try:
+        return run_mission(payload)
+    except KillSwitchEngaged:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "kill_switch_engaged",
+                "message": "Kill switch is engaged. Tools and model/provider calls are stopped.",
+            },
+        ) from None
+
+
+@app.get("/api/v1/kill-switch", tags=["Cerebrum"])
+async def kill_switch_status(_: str = Depends(verify_api_key)):
+    return {
+        "kill_switch": coordination_agents.kill_switch_state(),
+        "message": "Read-only status. POST engage=false to restore draft tools.",
+    }
 
 
 @app.post("/api/v1/kill-switch", tags=["Cerebrum"])
-async def kill_switch(_: str = Depends(verify_api_key)):
-    coordination_agents.COORDINATION_KILL_SWITCH = True
-    return {"ok": True, "kill_switch": True, "message": "Tools and model/provider calls stopped."}
+async def kill_switch(
+    req: Optional[KillSwitchRequest] = None,
+    _: str = Depends(verify_api_key),
+):
+    engage = True if req is None else bool(req.engage)
+    state = coordination_agents.set_kill_switch(engage)
+    message = (
+        "Tools and model/provider calls stopped."
+        if state
+        else "Kill switch released. Draft-only tools restored; live actions stay blocked."
+    )
+    return {"ok": True, "kill_switch": state, "message": message}
 
 
 @app.get("/api/v1/receipt/{mission_id}", tags=["Cerebrum"])
 async def mission_receipt(mission_id: str, _: str = Depends(verify_api_key)):
-    return {"mission_id": mission_id, "status": "staged_for_approval", "meta_served": False, "image_served": False, "persistence": "env-only; no provider configured"}
+    try:
+        receipt = get_receipt(mission_id)
+    except PersistenceError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "persistence_unavailable", "persistence": exc.report},
+        ) from None
+    if receipt is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No staged receipt exists for mission '{mission_id}'.",
+        )
+    return receipt
+
+
+@app.post("/api/v1/ad-draft/pollinations", tags=["DaVinci"])
+async def ad_draft_pollinations(
+    req: PollinationsAdDraftRequest, _: str = Depends(verify_api_key)
+):
+    _ensure_tools_running()
+    return pollinations_ad_draft(
+        req.product_name,
+        req.headline,
+        req.features,
+        req.width,
+        req.height,
+        req.seed,
+    )
+
+
+@app.post("/api/v1/receptionist/draft", tags=["Aegis"])
+async def receptionist_draft_reply(
+    req: ReceptionistDraftRequest, _: str = Depends(verify_api_key)
+):
+    _ensure_tools_running()
+    return receptionist_draft(req.message, req.product_name, req.customer_name)
+
+
+@app.post("/api/v1/layout/preview", tags=["Architect"])
+async def layout_preview_endpoint(
+    req: LayoutPreviewRequest, _: str = Depends(verify_api_key)
+):
+    _ensure_tools_running()
+    return layout_preview(
+        req.product_name,
+        req.product_features,
+        req.product_price,
+        req.brand_name,
+        req.page,
+    )
+
+
+@app.get("/api/v1/mcp/registry", tags=["Cerebrum"])
+async def mcp_registry_endpoint(_: str = Depends(verify_api_key)):
+    return mcp_registry()
 
 
 @app.post("/api/v1/product-description", tags=["Hawk"])

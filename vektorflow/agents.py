@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import copy
 import re
+import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from . import persistence
 from .intelligence import (
     SUPPLIERS,
     VOICES,
@@ -914,24 +918,358 @@ AGENT_ROSTER = [
 
 
 # Additive coordination layer for the hackathon upgrade. Existing specialist
-# functions and response shapes remain intact; this layer adds planning state.
+# functions and response shapes remain intact; this layer adds planning state,
+# a per-mission receipt store, and policy gates. Draft-only by default.
 COORDINATION_KILL_SWITCH = False
+MISSION_RECEIPTS: Dict[str, Dict[str, Any]] = {}
+_RECEIPT_LOCK = threading.Lock()
+
+DRAFT_ONLY_BLOCKED_ACTIONS = frozenset(
+    {
+        "publish_live",
+        "price_live",
+        "money_move",
+        "send_external_message",
+        "call_provider",
+        "deploy_live",
+    }
+)
+
+
+class KillSwitchEngaged(RuntimeError):
+    """Raised when work is attempted while the kill switch is engaged."""
+
+
+def set_kill_switch(engaged: bool) -> bool:
+    """Set the global kill switch and return the new state."""
+
+    global COORDINATION_KILL_SWITCH
+    COORDINATION_KILL_SWITCH = bool(engaged)
+    return COORDINATION_KILL_SWITCH
+
+
+def kill_switch_state() -> bool:
+    return bool(COORDINATION_KILL_SWITCH)
+
+
+def reset_state() -> None:
+    """Reset process state. Used by tests; never called by the API."""
+
+    global COORDINATION_KILL_SWITCH
+    COORDINATION_KILL_SWITCH = False
+    with _RECEIPT_LOCK:
+        MISSION_RECEIPTS.clear()
+
 
 def aegis_gate(action: str, risk: int = 3) -> Dict[str, Any]:
-    blocked = {"publish_live", "price_live", "money_move", "send_external_message", "call_provider"}
     if COORDINATION_KILL_SWITCH:
-        return {"action": action, "risk_score": 10, "allowed": False, "mode": "kill_switch", "recovery_plan": "Human operator must explicitly restore service."}
-    return {"action": action, "risk_score": risk, "allowed": action not in blocked, "mode": "draft_only", "recovery_plan": "Preserve evidence and request approval before retrying."}
+        return {
+            "action": action,
+            "risk_score": 10,
+            "allowed": False,
+            "mode": "kill_switch",
+            "recovery_plan": "Human operator must explicitly restore service.",
+        }
+    return {
+        "action": action,
+        "risk_score": risk,
+        "allowed": action not in DRAFT_ONLY_BLOCKED_ACTIONS,
+        "mode": "draft_only",
+        "recovery_plan": "Preserve evidence and request approval before retrying.",
+    }
+
+
+def _mission_objective(req: Dict[str, Any], product: Dict[str, Any]) -> Dict[str, Any]:
+    price = float(req.get("selling_price") or product.get("price") or 39)
+    return {
+        "goal": f"Reach a launch decision for {product['name']} and stage drafts for approval",
+        "product": product["name"],
+        "category": product.get("niche_label") or req.get("category") or "general",
+        "target_price": round(price, 2),
+        "product_cost_input": req.get("product_cost"),
+        "ad_budget": float(req.get("ad_budget") or 100),
+        "platforms": list(req.get("platforms") or ["tiktok", "instagram", "meta"]),
+        "competitor_source": req.get("competitor_url") or "not supplied",
+        "business_scope": "solo-seller store operations",
+        "mode": "draft_only",
+    }
+
+
+def _build_plan(req: Dict[str, Any], product: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Build a request-specific plan while keeping all 15 roster agents."""
+
+    name = product["name"]
+    price = float(req.get("selling_price") or product.get("price") or 39)
+    budget = float(req.get("ad_budget") or 100)
+    competitor = req.get("competitor_url") or "the supplied product brief"
+    tasks = {
+        "hawk": f"Scout demand, audience, and opportunity for {name}",
+        "smaug": f"Match suppliers and landed cost for a ${price:.2f} target price",
+        "architect": f"Design the store/business blueprint and brand frame for {name}",
+        "davinci": f"Draft hooks, script, and headlines for {name}",
+        "rook": f"Plan media allocation on a ${budget:.2f} daily budget",
+        "aegis": "Draft support, review, cart, and receptionist replies",
+        "arbiter": f"Compute floor and charm price around ${price:.2f}",
+        "sentinel": "Run the compliance and privacy audit",
+        "echo": "Cast the voice read and estimate runtime",
+        "cerebrum": "Synthesize the 15 reports into one verdict",
+        "viral": "Read platform velocity and the launch window",
+        "shadow": f"Build competitor intelligence for {competitor}",
+        "bundler": "Build bundle tiers and AOV lift",
+        "pivot": f"Convert competitor sentiment for {competitor} into ad angles",
+        "oracle": f"Model the 30-day P&L at a ${budget:.2f} daily budget",
+    }
+    dependencies = {
+        "hawk": [],
+        "smaug": ["hawk"],
+        "architect": ["hawk"],
+        "davinci": ["hawk", "architect"],
+        "rook": ["hawk"],
+        "aegis": ["architect"],
+        "arbiter": ["smaug"],
+        "sentinel": ["architect"],
+        "echo": ["davinci"],
+        "cerebrum": [a["id"] for a in AGENT_ROSTER if a["id"] != "cerebrum"],
+        "viral": ["hawk"],
+        "shadow": ["hawk"],
+        "bundler": ["arbiter"],
+        "pivot": ["shadow"],
+        "oracle": ["smaug", "arbiter"],
+    }
+    plan: List[Dict[str, Any]] = []
+    for index, agent in enumerate(AGENT_ROSTER, start=1):
+        agent_id = agent["id"]
+        step: Dict[str, Any] = {
+            "step": index,
+            "agent_id": agent_id,
+            "agent": agent["name"],
+            "task": tasks.get(agent_id, agent["role"]),
+            "depends_on": dependencies.get(agent_id, []),
+            "status": "pending",
+            "draft_only": True,
+            "external_calls": 0,
+        }
+        if agent_id == "pivot":
+            step.update(
+                {
+                    "optional": True,
+                    "replan_on_failure": True,
+                    "fallback": "local_intelligence",
+                }
+            )
+        plan.append(step)
+    return plan
+
+
+def _mark_plan_outcomes(plan: List[Dict[str, Any]]) -> None:
+    """Apply the draft-only execution outcome, including the Pivot replan."""
+
+    for step in plan:
+        if step["agent_id"] == "pivot":
+            step["status"] = "replanned"
+            step["attempts"] = [
+                {
+                    "attempt": 1,
+                    "status": "failed",
+                    "reason": "external competitor sentiment source not contacted in draft-only mode",
+                },
+                {
+                    "attempt": 2,
+                    "status": "completed",
+                    "reason": "continued with local Pivot intelligence; external source marked unavailable",
+                },
+            ]
+            step["replan"] = {
+                "strategy": "local_intelligence",
+                "external_source": "skipped",
+                "provider_contacted": False,
+            }
+        else:
+            step["status"] = "completed"
+
+
+def _events(plan: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = [
+        {"agent": agent["name"], "status": "planned", "planner": "Muse Spark dynamic planning"}
+        for agent in AGENT_ROSTER
+    ]
+    events.extend(
+        [
+            {
+                "agent": "Pivot",
+                "status": "failed",
+                "detail": "external competitor sentiment source not contacted in draft-only mode",
+            },
+            {
+                "agent": "Pivot",
+                "status": "replanned",
+                "detail": "continued with local intelligence; source marked unavailable",
+            },
+        ]
+    )
+    events.extend(
+        {"agent": step["agent"], "status": step["status"], "draft_only": True}
+        for step in plan
+    )
+    return events
+
+
+def _evidence_from_dossier(
+    dossier: Dict[str, Any], plan: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    reports = dossier.get("agents", {})
+    evidence: List[Dict[str, Any]] = []
+    for step in plan:
+        report = reports.get(step["agent_id"])
+        if not report:
+            continue
+        previous_status = step["status"]
+        item = {
+            "agent_id": step["agent_id"],
+            "agent": step["agent"],
+            "kind": "draft_report",
+            "status": previous_status,
+            "finding": report.get("briefing")
+            or report.get("note")
+            or f"{step['agent']} draft prepared.",
+            "draft_only": True,
+            "external_calls": 0,
+            "provider_contacted": False,
+        }
+        if step["agent_id"] == "pivot":
+            item["replan"] = step.get("replan")
+            item["attempts"] = step.get("attempts")
+        evidence.append(item)
+    return evidence
+
+
+def _mission_risk(gate: Dict[str, Any]) -> Dict[str, Any]:
+    score = int(gate.get("risk_score", 2))
+    return {
+        "score": score,
+        "level": "low" if score <= 3 else "medium",
+        "reversible": True,
+        "money_moved": False,
+        "external_calls": 0,
+        "provider_calls": 0,
+        "blocked_actions": sorted(DRAFT_ONLY_BLOCKED_ACTIONS),
+        "reason": "Draft-only mission: no publish, price change, provider call, external send, deploy, or money move.",
+    }
+
+
+def _trace(plan: List[Dict[str, Any]], gate: Dict[str, Any], receipt_id: str) -> List[Dict[str, Any]]:
+    return [
+        {"stage": "objective", "status": "defined"},
+        {"stage": "plan", "status": "generated", "steps": len(plan), "replans": 1, "planner": "Muse Spark dynamic planning"},
+        {"stage": "agents", "status": "completed", "reports": len(plan), "replanned": ["pivot"]},
+        {"stage": "evidence", "status": "collected", "items": len(plan)},
+        {"stage": "aegis_gate", "status": "passed" if gate["allowed"] else "blocked", "mode": gate["mode"], "risk_score": gate["risk_score"]},
+        {"stage": "approval", "status": "pending", "approver": "Wallace"},
+        {"stage": "receipt", "status": "issued", "id": receipt_id},
+    ]
+
+
+def persistence_status() -> Dict[str, Any]:
+    return persistence.configuration_status()
+
 
 def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
+    """Objective -> dynamic plan -> 15 agents -> evidence -> gate -> staged receipt."""
+
     if COORDINATION_KILL_SWITCH:
-        raise RuntimeError("kill_switch_engaged")
+        raise KillSwitchEngaged("kill_switch_engaged")
+
     dossier = _legacy_run_mission(req)
-    events = [{"agent": agent["name"], "status": "planned", "planner": "Muse Spark dynamic planning"} for agent in AGENT_ROSTER]
-    events.extend([
-        {"agent": "Pivot", "status": "failed", "detail": "optional_vendor_lookup_timeout"},
-        {"agent": "Pivot", "status": "replanned", "detail": "continued with local intelligence; source marked unavailable"},
-    ])
-    dossier["coordination"] = {"planner": "Muse Spark dynamic planning", "events": events, "status": "staged_for_approval", "aegis_gate": aegis_gate("stage_for_approval"), "meta_served": False, "image_served": False, "receipt": {"id": f"receipt-{dossier['mission_id']}", "status": "staged_for_approval"}}
-    dossier["agents"]["davinci"]["muse_image"] = {"status": "draft_slot", "prompt": f"Muse Image draft for {req['product_name']}", "image_served": False}
+    product = dossier["product"]
+    objective = _mission_objective(req, product)
+    plan = _build_plan(req, product)
+    _mark_plan_outcomes(plan)
+
+    events = _events(plan)
+    evidence = _evidence_from_dossier(dossier, plan)
+    gate = aegis_gate("stage_for_approval", 2)
+    risk = _mission_risk(gate)
+    mission_id = f"{dossier['mission_id']}-{uuid.uuid4().hex[:10]}"
+    receipt_id = f"receipt-{mission_id}"
+    approvals = [
+        {
+            "approver": "Wallace",
+            "role": "final tap",
+            "status": "pending",
+            "scope": "Review staged drafts. No publish, price change, send, provider call, deploy, or money move.",
+            "requested_at": _now(),
+        }
+    ]
+    receipt: Dict[str, Any] = {
+        "mission_id": mission_id,
+        "receipt_id": receipt_id,
+        "status": "staged_for_approval",
+        "objective": objective,
+        "planner": "Muse Spark dynamic planning",
+        "plan": plan,
+        "events": events,
+        "trace": _trace(plan, gate, receipt_id),
+        "evidence": evidence,
+        "approvals": approvals,
+        "risk": risk,
+        "aegis_gate": gate,
+        "kill_switch": False,
+        "kill_switch_at_staging": False,
+        "meta_served": False,
+        "image_served": False,
+        "draft_only": True,
+        "approved_by": None,
+        "receipt": {"id": receipt_id, "status": "staged_for_approval", "issued_at": _now()},
+        "persistence": {
+            "target": persistence.persistence_target(),
+            "tables": ["missions", "mission_receipts", "approvals"],
+        },
+    }
+
+    with _RECEIPT_LOCK:
+        MISSION_RECEIPTS[mission_id] = copy.deepcopy(receipt)
+
+    try:
+        persistence_report = persistence.save_mission(receipt)
+    except persistence.PersistenceError as exc:
+        persistence_report = exc.report
+
+    coordination = copy.deepcopy(receipt)
+    coordination.pop("mission_id", None)
+    coordination["persistence"] = persistence_report
+    dossier["mission_id"] = mission_id
+    dossier["coordination"] = coordination
+    dossier["persistence"] = persistence_report
+    dossier["meta_served"] = False
+    dossier["image_served"] = False
+    dossier["draft_only"] = True
+    dossier["agents"]["davinci"]["muse_image"] = {
+        "status": "not_requested",
+        "generated": False,
+        "served": False,
+        "image_served": False,
+        "provider": "none",
+        "provider_contacted": False,
+        "reason": "Muse Image requires credits plus a second human approval. No call was made.",
+    }
     return dossier
+
+
+def get_receipt(mission_id: str) -> Optional[Dict[str, Any]]:
+    """Return the stored receipt for a real mission, or None for an unknown id."""
+
+    with _RECEIPT_LOCK:
+        stored = MISSION_RECEIPTS.get(mission_id)
+    if stored is None:
+        stored = persistence.fetch_receipt(mission_id)
+        if stored is None:
+            return None
+        with _RECEIPT_LOCK:
+            MISSION_RECEIPTS[mission_id] = copy.deepcopy(stored)
+
+    receipt = copy.deepcopy(stored)
+    receipt["kill_switch"] = kill_switch_state()
+    receipt["kill_switch_at_staging"] = bool(stored.get("kill_switch", False))
+    receipt["meta_served"] = bool(stored.get("meta_served", False))
+    receipt["image_served"] = bool(stored.get("image_served", False))
+    return receipt

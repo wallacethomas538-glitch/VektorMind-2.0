@@ -155,3 +155,30 @@ class MissionRequest(BaseModel):
     store_url: Optional[str] = None
     platforms: Optional[List[str]] = ["tiktok", "instagram", "meta"]
     competitor_url: Optional[str] = None
+
+
+class KillSwitchRequest(BaseModel):
+    engage: bool = True
+
+
+class PollinationsAdDraftRequest(BaseModel):
+    product_name: str = Field(..., min_length=1, max_length=160)
+    headline: Optional[str] = None
+    features: List[str] = []
+    width: int = 1024
+    height: int = 1088
+    seed: Optional[int] = None
+
+
+class ReceptionistDraftRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    product_name: Optional[str] = None
+    customer_name: Optional[str] = None
+
+
+class LayoutPreviewRequest(BaseModel):
+    product_name: str = Field(..., min_length=1, max_length=160)
+    product_features: List[str] = []
+    product_price: float = 39.0
+    brand_name: Optional[str] = None
+    page: str = "home"
