@@ -26,7 +26,7 @@ Same product, same numbers. The read is deterministic.
 | 14 | Pivot | One-star reviews turned into ad angles |
 | 15 | Oracle | Conservative / base / optimistic 30-day P&L |
 
-Works as a desk for any business type: storefront, salon, restaurant, service, or custom operation. Draft-only by default.
+Built for solo-seller store operations. Draft-only by default.
 
 ## Quick start
 

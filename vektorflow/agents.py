@@ -990,7 +990,7 @@ def _mission_objective(req: Dict[str, Any], product: Dict[str, Any]) -> Dict[str
         "ad_budget": float(req.get("ad_budget") or 100),
         "platforms": list(req.get("platforms") or ["tiktok", "instagram", "meta"]),
         "competitor_source": req.get("competitor_url") or "not supplied",
-        "business_scope": "any business (store, salon, restaurant, or service)",
+        "business_scope": "solo-seller store operations",
         "mode": "draft_only",
     }
 
