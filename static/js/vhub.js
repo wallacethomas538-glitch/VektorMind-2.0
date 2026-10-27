@@ -1,7 +1,9 @@
 /* VektorMind 2.0 — V Hub.
  * A glowing faceted V, a purple/blue particle spiral, a perspective floor grid,
- * rings, and six tech panels orbiting in 3D. Everything is drawn live in
+ * rings, and seven tech panels orbiting in 3D. Everything is drawn live in
  * HTML/CSS/JS — no reference video plays behind it and there is no backdrop.
+ * Swing the orbit by hand: drag/swipe the stage or use the scroll wheel, with
+ * flick momentum. Tap a panel in the bottom dock to jump it straight to front.
  * Push a panel once: the orbit swings it to the front, stops, and the section
  * swings up. Push the header again or tap close to swing back down and resume
  * the rotating hub. Only one section is open at a time. Draft-only; status is
@@ -23,6 +25,8 @@
   const closeButton = document.getElementById("vhub-close");
   const statusPill = document.getElementById("vhub-status-pill");
   const particleCanvas = document.getElementById("vhub-particles");
+  const dock = document.getElementById("vhub-dock");
+  const dockButtons = dock ? Array.from(dock.querySelectorAll("[data-vhub-jump]")) : [];
 
   const TAU = Math.PI * 2;
   const STEP = TAU / panels.length;
@@ -31,6 +35,9 @@
   const SPEED = REDUCED ? 0 : 0.16;
   const AIM_MS = 480;
   const RECEIPT_KEY = "vhub-receipt-ids";
+  const WHEEL_RATE = 0.0032;
+  const MAX_SWING = 3.4;
+  const SWING_STOP = 0.22;
 
   const META = {
     agents: { eyebrow: "Table of 15", title: "Agents", load: loadAgents },
@@ -39,6 +46,7 @@
     ops: { eyebrow: "Floor read", title: "Live Ops", load: loadOps },
     receipts: { eyebrow: "Staged approvals", title: "Receipts", load: loadReceipts },
     kill: { eyebrow: "Aegis Gate", title: "Kill Switch", load: loadKill },
+    image: { eyebrow: "Staged slot", title: "Muse Image", load: loadMuseImage },
   };
 
   let angle = -Math.PI / 2;
@@ -50,6 +58,15 @@
   let aimStart = 0;
   let rafId = null;
   let lastTs = 0;
+  let dragPointer = null;
+  let dragLastX = 0;
+  let dragLastT = 0;
+  let dragVelocity = 0;
+  let dragMoved = 0;
+  let suppressClick = false;
+  let suppressTimer = 0;
+  let frontIndex = -1;
+  let holdUntil = 0;
 
   function esc(value) {
     return String(value ?? "").replace(/[&<>"']/g, (c) => ({
@@ -238,6 +255,46 @@
     return target;
   }
 
+  function radiansPerPixel() {
+    const width = stage.clientWidth || window.innerWidth;
+    return 1 / Math.max(180, width * 0.3);
+  }
+
+  function nearestFront() {
+    let best = 0;
+    let bestGap = Infinity;
+    panels.forEach((el, index) => {
+      let gap = (angle + index * STEP - FRONT) % TAU;
+      if (gap > Math.PI) gap -= TAU;
+      if (gap < -Math.PI) gap += TAU;
+      gap = Math.abs(gap);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = index;
+      }
+    });
+    return best;
+  }
+
+  function updateDock(index) {
+    if (index === frontIndex) return;
+    frontIndex = index;
+    const frontId = panels[index] ? panels[index].dataset.panel : "";
+    dockButtons.forEach((button) => {
+      const on = button.dataset.vhubJump === frontId;
+      button.classList.toggle("is-front", on);
+      if (on) button.setAttribute("aria-current", "true");
+      else button.removeAttribute("aria-current");
+    });
+  }
+
+  function cancelSwing() {
+    dragPointer = null;
+    dragVelocity = 0;
+    dragMoved = 0;
+    stage.classList.remove("is-dragging");
+  }
+
   function tick(ts) {
     if (!lastTs) lastTs = ts;
     const dt = Math.min((ts - lastTs) / 1000, 0.05);
@@ -250,13 +307,31 @@
       if (progress >= 1) {
         const id = pending;
         pending = null;
-        openPanel(id);
+        if (id) {
+          openPanel(id);
+        } else {
+          mode = "hold";
+          holdUntil = ts + 5000;
+          setPressed(null);
+        }
+      }
+    } else if (mode === "hold") {
+      if (ts > holdUntil) mode = "spin";
+    } else if (mode === "dragging") {
+      /* angle is driven by pointermove */
+    } else if (mode === "inertia") {
+      angle += dragVelocity * dt;
+      dragVelocity *= Math.exp(-2.4 * dt);
+      if (Math.abs(dragVelocity) < SWING_STOP) {
+        dragVelocity = 0;
+        mode = "spin";
       }
     } else if (mode === "spin") {
       angle += SPEED * dt;
     }
 
     layout();
+    updateDock(nearestFront());
     drawParticles(ts);
     rafId = requestAnimationFrame(tick);
   }
@@ -287,7 +362,7 @@
   /* ---------- panel / section ---------- */
 
   function onPanelPush(el) {
-    if (mode !== "spin") return;
+    if (mode !== "spin" && mode !== "hold") return;
     const index = panels.indexOf(el);
     const meta = META[el.dataset.panel];
     if (!meta) return;
@@ -323,6 +398,7 @@
       mode = "spin";
       return;
     }
+    cancelSwing();
     const was = active;
     active = null;
     mode = "closing";
@@ -349,20 +425,12 @@
     else setTimeout(finish, 540);
   }
 
-  function goToPanel(id) {
+  function aimAt(id, andOpen) {
     const el = panels.find((panel) => panel.dataset.panel === id);
     if (!el) return;
-    if (mode === "open") {
-      closePanel();
-      setTimeout(() => goToPanel(id), 560);
-      return;
-    }
-    if (mode === "closing" || mode === "aiming") {
-      setTimeout(() => goToPanel(id), 560);
-      return;
-    }
+    cancelSwing();
     startLoop();
-    pending = id;
+    pending = andOpen ? id : null;
     aimFrom = angle;
     aimTarget = aimAngleFor(panels.indexOf(el));
     aimStart = performance.now();
@@ -370,8 +438,37 @@
     setPressed(id);
   }
 
+  function goToPanel(id) {
+    if (!META[id]) return;
+    if (mode === "open") {
+      closePanel();
+      setTimeout(() => goToPanel(id), 560);
+      return;
+    }
+    if (mode === "closing") {
+      setTimeout(() => goToPanel(id), 560);
+      return;
+    }
+    aimAt(id, true);
+  }
+
+  function jumpToPanel(id) {
+    if (!META[id]) return;
+    if (mode === "open") {
+      closePanel();
+      setTimeout(() => jumpToPanel(id), 560);
+      return;
+    }
+    if (mode === "closing") {
+      setTimeout(() => jumpToPanel(id), 560);
+      return;
+    }
+    aimAt(id, false);
+  }
+
   function showClassic(view) {
     closePanel(true);
+    cancelSwing();
     hub.hidden = true;
     document.body.classList.remove("vhub-open");
     document.body.classList.remove("vhub-section-open");
@@ -385,6 +482,7 @@
 
   function openHub() {
     if (mode === "open" || mode === "closing") closePanel(true);
+    cancelSwing();
     hub.hidden = false;
     document.body.classList.add("vhub-open");
     resizeParticles();
@@ -703,11 +801,103 @@
     });
   }
 
+  async function loadMuseImage(root) {
+    root.innerHTML = loading("Reading the staged slot…");
+    const result = await request("/health");
+    const health = result.ok && result.data ? result.data : {};
+    const imageServed = health.image_served === true;
+    root.innerHTML = `
+      <div class="vhub-image-slot" role="img" aria-label="Muse Image display slot: staged, not generated yet">
+        <span class="vhub-image-slot-mark">MUSE IMAGE</span>
+        <p class="vhub-image-slot-title">staged, not generated yet</p>
+        <small>Display slot only. No image is generated, rendered, or served.</small>
+      </div>
+      <div class="vhub-status-grid">
+        ${card("image_served", String(imageServed), imageServed ? "bad" : "good")}
+        ${card("mode", "draft-only", "good")}
+        ${card("meta calls", "none", "warn")}
+        ${card("generation", "not run", "warn")}
+      </div>
+      <p class="hint">Draft-only. This panel makes no Meta or model call; it only shows the staged slot.</p>`;
+  }
+
   /* ---------- wiring ---------- */
 
   panels.forEach((el) => {
     el.setAttribute("aria-expanded", "false");
-    el.addEventListener("click", () => onPanelPush(el));
+    el.addEventListener("click", () => {
+      if (suppressClick) return;
+      onPanelPush(el);
+    });
+  });
+
+  if (stage) {
+    stage.addEventListener("pointerdown", (event) => {
+      if (mode === "open" || mode === "closing") return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      dragPointer = event.pointerId;
+      dragLastX = event.clientX;
+      dragLastT = event.timeStamp;
+      dragVelocity = 0;
+      dragMoved = 0;
+      mode = "dragging";
+      stage.classList.add("is-dragging");
+      if (stage.setPointerCapture) {
+        try { stage.setPointerCapture(event.pointerId); } catch { /* no capture */ }
+      }
+    });
+
+    stage.addEventListener("pointermove", (event) => {
+      if (mode !== "dragging" || event.pointerId !== dragPointer) return;
+      const dx = event.clientX - dragLastX;
+      const dt = Math.max(12, event.timeStamp - dragLastT) / 1000;
+      if (!dx) return;
+      const delta = -dx * radiansPerPixel();
+      angle += delta;
+      dragMoved += Math.abs(dx);
+      const instant = delta / dt;
+      dragVelocity = dragVelocity * 0.7 + instant * 0.3;
+      dragLastX = event.clientX;
+      dragLastT = event.timeStamp;
+    });
+
+    const endDrag = (event) => {
+      if (dragPointer === null) return;
+      dragPointer = null;
+      stage.classList.remove("is-dragging");
+      if (dragMoved > 8) {
+        suppressClick = true;
+        window.clearTimeout(suppressTimer);
+        suppressTimer = window.setTimeout(() => { suppressClick = false; }, 380);
+      }
+      if (event && event.timeStamp - dragLastT > 120) dragVelocity = 0;
+      if (Math.abs(dragVelocity) > SWING_STOP) {
+        dragVelocity = Math.max(-MAX_SWING, Math.min(MAX_SWING, dragVelocity));
+        mode = "inertia";
+      } else {
+        dragVelocity = 0;
+        mode = "spin";
+      }
+    };
+    stage.addEventListener("pointerup", endDrag);
+    stage.addEventListener("pointercancel", endDrag);
+
+    hub.addEventListener("wheel", (event) => {
+      if (mode === "open" || mode === "closing") return;
+      let raw = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!raw) return;
+      event.preventDefault();
+      if (event.deltaMode === 1) raw *= 16;
+      else if (event.deltaMode === 2) raw *= (stage.clientHeight || 600);
+      const delta = raw * WHEEL_RATE;
+      angle -= delta;
+      dragVelocity = Math.max(-MAX_SWING, Math.min(MAX_SWING, -delta * 9));
+      mode = "inertia";
+    }, { passive: false });
+  }
+
+  dockButtons.forEach((button) => {
+    button.addEventListener("click", () => jumpToPanel(button.dataset.vhubJump));
   });
 
   sectionHead.addEventListener("click", (event) => {
