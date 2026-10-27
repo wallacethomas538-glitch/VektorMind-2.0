@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@360;420;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/app.css" />
 </head>
-<body>
+<body class="vhub-open">
   <div id="boot" class="boot" hidden>
     <div class="boot-inner">
       <img src="/static/img/mark.svg" alt="" width="56" height="56" />
@@ -22,7 +22,11 @@
     </div>
   </div>
 
-  <div id="vhub" class="vhub" role="region" aria-label="V Hub">
+  <div id="vhub" class="vhub is-starting" role="region" aria-label="V Hub">
+    <div id="vhub-startup" class="vhub-startup" aria-hidden="true">
+      <video id="vhub-startup-video" class="vhub-startup-video" src="/static/video/flow-v-startup.mp4" muted playsinline preload="auto"></video>
+      <div class="vhub-startup-veil"></div>
+    </div>
     <div class="vhub-scene" aria-hidden="true">
       <canvas class="vhub-particles" id="vhub-particles"></canvas>
       <div class="vhub-aurora"></div>
@@ -60,6 +64,7 @@
         </div>
       </div>
       <div class="vhub-top-actions">
+        <button class="hum-toggle" type="button" data-hum-toggle aria-pressed="false" aria-label="Mute the hum">Hum on</button>
         <span class="pill" id="vhub-status-pill">CHECKING</span>
         <button class="btn ghost tiny" id="vhub-classic" type="button">Classic view</button>
       </div>
@@ -178,6 +183,7 @@
         <button data-nav="dossier">Dossier</button>
       </nav>
       <div class="top-meta">
+        <button class="hum-toggle hum-toggle--classic" type="button" data-hum-toggle aria-pressed="false" aria-label="Mute the hum">Hum on</button>
         <span class="pill" id="mode-pill">DEMO</span>
         <span class="clock" id="clock">00:00:00</span>
       </div>
@@ -367,8 +373,10 @@
     <footer class="ticker" id="ticker"></footer>
   </div>
 
+  <audio id="vhub-hum" src="/static/audio/flow-v-hum.m4a" loop preload="auto"></audio>
   <script src="/static/js/app.js"></script>
   <script src="/static/js/mission_command.js"></script>
+  <script src="/static/js/startup.js"></script>
   <script src="/static/js/vhub.js"></script>
 </body>
 </html>

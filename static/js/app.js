@@ -52,7 +52,7 @@ function go(view) {
 function boot() {
   const seen = sessionStorage.getItem("vf-booted");
   const overlay = $("#boot");
-  if (seen) {
+  if (seen || document.body.classList.contains("vhub-open")) {
     overlay.hidden = true;
     return;
   }
