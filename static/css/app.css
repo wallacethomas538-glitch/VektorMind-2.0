@@ -404,6 +404,7 @@ td { padding: 10px 8px; border-bottom: 1px solid #1a2130; }
   background: #05070a;
   display: grid; place-items: center;
 }
+.boot[hidden] { display: none !important; }
 .boot-inner { text-align: center; width: min(420px, 90vw); }
 .boot-line { color: var(--muted); min-height: 1.4em; }
 .boot-bar { height: 3px; background: #1a2230; border-radius: 99px; overflow: hidden; }
