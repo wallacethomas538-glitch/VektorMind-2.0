@@ -44,9 +44,9 @@
         <p class="vhub-hud-title">Orbit map</p>
         <span class="vhub-hud-bar"><i></i></span>
         <p class="vhub-hud-row"><b>Agents</b><em>15</em></p>
-        <p class="vhub-hud-row"><b>Panels</b><em>6</em></p>
+        <p class="vhub-hud-row"><b>Panels</b><em>7</em></p>
         <p class="vhub-hud-row"><b>Receipts</b><em>staged</em></p>
-        <span class="vhub-hud-dots"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="vhub-hud-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
       </div>
     </div>
     <div class="vhub-shade" aria-hidden="true"></div>
@@ -97,6 +97,11 @@
           <span class="vhub-panel-name">Kill Switch</span>
           <span class="vhub-panel-sub">Aegis gate</span>
         </button>
+        <button class="vhub-panel" type="button" data-panel="image">
+          <span class="vhub-panel-glyph">IMG</span>
+          <span class="vhub-panel-name">Muse Image</span>
+          <span class="vhub-panel-sub">Staged slot</span>
+        </button>
       </div>
 
       <div class="vhub-core" aria-hidden="true">
@@ -129,6 +134,16 @@
     </div>
 
     <p class="vhub-label">3D V core · drawn in HTML/CSS · draft-only surface</p>
+
+    <nav class="vhub-dock" id="vhub-dock" aria-label="Jump to a V Hub panel">
+      <button class="vhub-dot" type="button" data-vhub-jump="agents"><i aria-hidden="true"></i>Agents</button>
+      <button class="vhub-dot" type="button" data-vhub-jump="llm"><i aria-hidden="true"></i>LLM</button>
+      <button class="vhub-dot" type="button" data-vhub-jump="missions"><i aria-hidden="true"></i>Missions</button>
+      <button class="vhub-dot" type="button" data-vhub-jump="ops"><i aria-hidden="true"></i>Live Ops</button>
+      <button class="vhub-dot" type="button" data-vhub-jump="receipts"><i aria-hidden="true"></i>Receipts</button>
+      <button class="vhub-dot" type="button" data-vhub-jump="kill"><i aria-hidden="true"></i>Kill Switch</button>
+      <button class="vhub-dot" type="button" data-vhub-jump="image"><i aria-hidden="true"></i>Muse Image</button>
+    </nav>
 
     <section class="vhub-section" id="vhub-section" role="dialog" aria-modal="true" aria-labelledby="vhub-section-title" hidden>
       <div class="vhub-section-card">
