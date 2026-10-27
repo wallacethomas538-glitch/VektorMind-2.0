@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VEKTORFLOW-15 — Cerebrum Command</title>
+  <meta name="description" content="Autonomous AI e-commerce operating system. Fifteen specialized agents. One decision." />
+  <link rel="icon" href="/static/img/mark.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@360;420;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <div id="boot" class="boot" hidden>
+    <div class="boot-inner">
+      <img src="/static/img/mark.svg" alt="" width="56" height="56" />
+      <p class="eyebrow">VEKTORFLOW-15</p>
+      <h1>Cerebrum coming online</h1>
+      <p class="boot-line" id="boot-line">Linking the table…</p>
+      <div class="boot-bar"><span id="boot-fill"></span></div>
+    </div>
+  </div>
+
+  <div class="app" id="app">
+    <header class="top">
+      <div class="brand" data-nav="command">
+        <img src="/static/img/mark.svg" alt="" width="32" height="32" />
+        <div>
+          <strong>VEKTORFLOW-15</strong>
+          <span>Cerebrum Command</span>
+        </div>
+      </div>
+      <nav class="top-nav">
+        <button data-nav="command" class="is-on">Command</button>
+        <button data-nav="mission">Launch</button>
+        <button data-nav="ops">Live Ops</button>
+        <button data-nav="dossier">Dossier</button>
+      </nav>
+      <div class="top-meta">
+        <span class="pill" id="mode-pill">DEMO</span>
+        <span class="clock" id="clock">00:00:00</span>
+      </div>
+    </header>
+
+    <aside class="rail">
+      <p class="rail-label">Table of 15</p>
+      <ol id="roster" class="roster"></ol>
+      <button class="launch-btn" data-nav="mission">New mission</button>
+    </aside>
+
+    <main class="stage">
+      <section id="view-command" class="view is-on">
+        <div class="hero">
+          <div>
+            <p class="eyebrow">Operating system</p>
+            <h1>Fifteen agents.<br />One launch decision.</h1>
+            <p class="lede">Cerebrum runs product, supply, store, creative, media, support, price, compliance, voice, virality, intel, bundles, positioning, and profit as a single mission.</p>
+            <div class="hero-actions">
+              <button class="btn primary" data-nav="mission">Launch a product</button>
+              <button class="btn ghost" id="btn-sample">Load sample dossier</button>
+            </div>
+          </div>
+          <div class="hero-panel" id="kpi-panel"></div>
+        </div>
+        <div class="grid-15" id="agent-grid"></div>
+        <section class="feed-wrap">
+          <h2>Live table traffic</h2>
+          <ul id="feed" class="feed"></ul>
+        </section>
+      </section>
+
+      <section id="view-mission" class="view">
+        <div class="split">
+          <form id="mission-form" class="panel form">
+            <p class="eyebrow">Mission brief</p>
+            <h2>What are we launching?</h2>
+            <label>Product name
+              <input name="product_name" required value="Candle Warmer Lamp" maxlength="160" />
+            </label>
+            <div class="row">
+              <label>Category
+                <select name="category">
+                  <option value="home">Home & Decor</option>
+                  <option value="beauty">Beauty</option>
+                  <option value="fitness">Fitness</option>
+                  <option value="pet">Pet</option>
+                  <option value="kitchen">Kitchen</option>
+                  <option value="tech">Tech</option>
+                  <option value="fashion">Fashion</option>
+                  <option value="outdoor">Outdoor</option>
+                  <option value="baby">Baby</option>
+                  <option value="office">Office</option>
+                </select>
+              </label>
+              <label>Brand (optional)
+                <input name="brand_name" placeholder="Leave blank to generate" />
+              </label>
+            </div>
+            <label>Features
+              <input name="features" value="halogen bulb, dimmable, dorm-safe" />
+            </label>
+            <div class="row3">
+              <label>Sell price
+                <input name="selling_price" type="number" step="0.01" min="1" value="44.99" />
+              </label>
+              <label>Unit cost
+                <input name="product_cost" type="number" step="0.01" min="0" value="11.40" />
+              </label>
+              <label>Daily ad budget
+                <input name="ad_budget" type="number" step="1" min="0" value="100" />
+              </label>
+            </div>
+            <label>Competitor URL
+              <input name="competitor_url" value="https://glowhaus.co" />
+            </label>
+            <button class="btn primary" type="submit" id="mission-go">Assemble the table</button>
+            <p class="hint">Cerebrum will run all 15 agents against this brief. Same product always returns the same read.</p>
+          </form>
+          <div class="panel exec" id="exec">
+            <p class="eyebrow">Execution</p>
+            <h2 id="exec-title">Standing by</h2>
+            <p class="lede" id="exec-sub">Fill the brief. Cerebrum will wake the table in order.</p>
+            <ol id="exec-list" class="exec-list"></ol>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-ops" class="view">
+        <div class="ops-head">
+          <div>
+            <p class="eyebrow">Live ops</p>
+            <h2>Today’s floor</h2>
+          </div>
+          <button class="btn ghost" id="ops-refresh">Refresh board</button>
+        </div>
+        <div id="ops-board" class="ops-board"></div>
+      </section>
+
+      <section id="view-dossier" class="view">
+        <div id="dossier" class="dossier empty">
+          <div class="empty-state">
+            <p class="eyebrow">Dossier</p>
+            <h2>No mission on the table</h2>
+            <p>Launch a product or load the sample Candle Warmer Lamp read.</p>
+            <button class="btn primary" data-nav="mission">Launch</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-agent" class="view">
+        <div id="agent-station"></div>
+      </section>
+    </main>
+
+    <footer class="ticker" id="ticker"></footer>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
