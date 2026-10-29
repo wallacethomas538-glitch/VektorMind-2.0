@@ -35,6 +35,7 @@ from .agents import (
     price_optimize,
     rook,
     run_mission,
+    meta_model_configured,
     sentinel,
     shadow,
     smaug,
@@ -135,7 +136,7 @@ async def health():
         "license": "Apache 2.0",
         "kill_switch": coordination_agents.kill_switch_state(),
         "draft_only": True,
-        "meta_served": False,
+        "meta_served": meta_model_configured(),
         "image_served": False,
         "persistence": coordination_agents.persistence_status(),
     }

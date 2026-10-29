@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import copy
+import json
+import os
 import re
 import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
 
 from . import persistence
 from .intelligence import (
@@ -935,6 +939,41 @@ DRAFT_ONLY_BLOCKED_ACTIONS = frozenset(
     }
 )
 
+MUSE_SPARK_ENDPOINT = "https://api.meta.ai/v1/chat/completions"
+MUSE_SPARK_MODEL = "muse-spark-1.3"
+
+
+def meta_model_configured() -> bool:
+    return bool(os.environ.get("META_MODEL_API_KEY", "").strip())
+
+
+def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
+    """Call Muse Spark for draft planning; a failed call never becomes a fabricated plan."""
+    key = os.environ.get("META_MODEL_API_KEY", "").strip()
+    if not key:
+        return {"status": "staged", "meta_served": False, "reason": "META_MODEL_API_KEY is not configured."}
+    prompt = (
+        "Create a draft-only mission plan. Do not publish, change prices, move money, send messages, "
+        "call providers, or deploy. Objective: " + json.dumps(objective, sort_keys=True)
+    )
+    body = json.dumps({"model": MUSE_SPARK_MODEL, "messages": [{"role": "user", "content": prompt}]}).encode()
+    req = urllib_request.Request(
+        MUSE_SPARK_ENDPOINT, data=body,
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=30) as response:
+            payload = json.loads(response.read().decode())
+        choices = payload.get("choices") if isinstance(payload, dict) else None
+        output = choices[0].get("message", {}).get("content") if choices else None
+        if not output:
+            return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned no usable planning output."}
+        return {"status": "live", "meta_served": True, "model": MUSE_SPARK_MODEL, "output": output}
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
+    except Exception:
+        return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
+
 
 class KillSwitchEngaged(RuntimeError):
     """Raised when work is attempted while the kill switch is engaged."""
@@ -1182,6 +1221,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
     dossier = _legacy_run_mission(req)
     product = dossier["product"]
     objective = _mission_objective(req, product)
+    muse_spark = _muse_spark_plan_call(objective)
     plan = _build_plan(req, product)
     _mark_plan_outcomes(plan)
 
@@ -1205,7 +1245,8 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
         "receipt_id": receipt_id,
         "status": "staged_for_approval",
         "objective": objective,
-        "planner": "Muse Spark dynamic planning",
+        "planner": "Muse Spark live planning" if muse_spark["meta_served"] else "Muse Spark dynamic planning (staged)",
+        "muse_spark": muse_spark,
         "plan": plan,
         "events": events,
         "trace": _trace(plan, gate, receipt_id),
@@ -1215,7 +1256,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
         "aegis_gate": gate,
         "kill_switch": False,
         "kill_switch_at_staging": False,
-        "meta_served": False,
+        "meta_served": muse_spark["meta_served"],
         "image_served": False,
         "draft_only": True,
         "approved_by": None,
@@ -1240,7 +1281,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
     dossier["mission_id"] = mission_id
     dossier["coordination"] = coordination
     dossier["persistence"] = persistence_report
-    dossier["meta_served"] = False
+    dossier["meta_served"] = muse_spark["meta_served"]
     dossier["image_served"] = False
     dossier["draft_only"] = True
     dossier["agents"]["davinci"]["muse_image"] = {
