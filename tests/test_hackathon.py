@@ -90,15 +90,18 @@ def test_muse_spark_live_planner_call_is_mocked(monkeypatch):
 
     seen = {}
     def fake_urlopen(request, timeout):
-        seen.update({"url": request.full_url, "timeout": timeout, "body": json.loads(request.data)})
+        seen.setdefault("requests", []).append({"url": request.full_url, "timeout": timeout, "body": json.loads(request.data)})
+        if request.full_url.endswith("/images/generations"):
+            return type("ImageResponse", (), {"__enter__": lambda s: s, "__exit__": lambda s, *a: False,
+                "read": lambda s: json.dumps({"data": [{"url": "https://cdn.example.test/draft.png"}]}).encode()})()
         return FakeResponse()
 
     monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
     monkeypatch.setattr(agents.urllib_request, "urlopen", fake_urlopen)
     body = _new_mission()
 
-    assert seen["url"] == "https://api.meta.ai/v1/chat/completions"
-    assert seen["body"]["model"] == "muse-spark-1.3"
+    assert seen["requests"][0]["url"] == "https://api.meta.ai/v1/chat/completions"
+    assert seen["requests"][0]["body"]["model"] == "muse-spark-1.3"
     assert "test-only-key" not in json.dumps(body)
     assert body["meta_served"] is True
     assert body["coordination"]["muse_spark"]["output"] == "draft plan from Muse Spark"
@@ -116,6 +119,54 @@ def test_muse_spark_failure_stays_staged(monkeypatch):
     assert body["coordination"]["planner"] == "Muse Spark dynamic planning (staged)"
     assert body["coordination"]["muse_spark"]["status"] == "staged"
     assert "failed" in body["coordination"]["muse_spark"]["reason"]
+
+
+def test_muse_image_missing_key_stays_staged(monkeypatch):
+    monkeypatch.delenv("META_MODEL_API_KEY", raising=False)
+    body = _new_mission()
+
+    image = body["coordination"]["muse_image"]
+    assert image["status"] == "staged"
+    assert image["image_served"] is False
+    assert image["reason"] == "META_MODEL_API_KEY is not configured."
+    assert body["image_served"] is False
+
+
+def test_muse_image_success_is_draft_only_and_mocked(monkeypatch):
+    class FakeResponse:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self):
+            return json.dumps({"data": [{"url": "https://cdn.example.test/draft.png"}]}).encode()
+
+    seen = {}
+    def fake_urlopen(request, timeout):
+        seen.update({"url": request.full_url, "body": json.loads(request.data)})
+        if request.full_url.endswith("/chat/completions"):
+            return type("SparkResponse", (), {"__enter__": lambda s: s, "__exit__": lambda s, *a: False,
+                "read": lambda s: json.dumps({"choices": [{"message": {"content": "draft plan"}}]}).encode()})()
+        return FakeResponse()
+
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    monkeypatch.setattr(agents.urllib_request, "urlopen", fake_urlopen)
+    body = _new_mission()
+
+    assert seen["url"] == "https://api.meta.ai/v1/images/generations"
+    assert seen["body"]["model"] == "muse-image-1.0"
+    assert body["image_served"] is True
+    assert body["coordination"]["muse_image"]["status"] == "staged_for_approval"
+    assert body["coordination"]["draft_only"] is True
+
+
+def test_muse_image_failure_is_plainly_staged(monkeypatch):
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    monkeypatch.setattr(agents.urllib_request, "urlopen", lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError("test failure")))
+    body = _new_mission()
+
+    image = body["coordination"]["muse_image"]
+    assert image["status"] == "staged"
+    assert image["image_served"] is False
+    assert "Muse Image API call failed" in image["reason"]
 
 
 def test_each_mission_gets_its_own_receipt():
