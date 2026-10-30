@@ -25,6 +25,7 @@ from .agents import (
     aegis_cart,
     aegis_chat,
     aegis_review,
+    approve_receipt,
     arbiter,
     architect,
     bundler,
@@ -294,6 +295,25 @@ async def kill_switch(
 async def mission_receipt(mission_id: str, _: str = Depends(verify_api_key)):
     try:
         receipt = get_receipt(mission_id)
+    except PersistenceError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "persistence_unavailable", "persistence": exc.report},
+        ) from None
+    if receipt is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No staged receipt exists for mission '{mission_id}'.",
+        )
+    return receipt
+
+
+@app.post("/api/v1/receipt/{mission_id}/approve", tags=["Cerebrum"])
+async def approve_mission_receipt(mission_id: str, _: str = Depends(verify_api_key)):
+    """Manually approve a staged mission. Status flip only — nothing is
+    published, sent, served, or executed; draft-only is preserved."""
+    try:
+        receipt = approve_receipt(mission_id)
     except PersistenceError as exc:
         raise HTTPException(
             status_code=503,
