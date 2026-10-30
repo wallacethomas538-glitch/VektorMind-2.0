@@ -994,7 +994,11 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
     body = json.dumps({"model": MUSE_SPARK_MODEL, "messages": [{"role": "user", "content": prompt}]}).encode()
     req = urllib_request.Request(
         meta_endpoint("chat/completions"), data=body,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST"
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }, method="POST"
     )
     try:
         with urllib_request.urlopen(req, timeout=30) as response:
@@ -1028,7 +1032,11 @@ def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
     body = json.dumps({"model": MUSE_IMAGE_MODEL, "prompt": prompt}).encode()
     req = urllib_request.Request(
         meta_endpoint("images/generations"), data=body,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST"
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }, method="POST"
     )
     try:
         with urllib_request.urlopen(req, timeout=30) as response:
