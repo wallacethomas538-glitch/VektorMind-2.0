@@ -962,12 +962,28 @@ def _log_meta_failure(url: str, exc: Exception) -> None:
     logger.warning("Meta API failure url=%s status=%s headers=%s", url, getattr(exc, "code", None), safe_headers)
 
 
+def _force_ipv4_if_configured() -> None:
+    """Force IPv4 for Meta API calls when META_FORCE_IPV4=1 (default)."""
+    if os.environ.get("META_FORCE_IPV4", "1") != "1":
+        return
+    import socket as _socket
+    if getattr(_socket.getaddrinfo, "_vektor_ipv4", False):
+        return
+    _orig_getaddrinfo = _socket.getaddrinfo
+    def _ipv4_only(host, port, *args, **kwargs):
+        kwargs.pop("family", None)
+        return _orig_getaddrinfo(host, port, _socket.AF_INET, *args, **kwargs)
+    _ipv4_only._vektor_ipv4 = True
+    _socket.getaddrinfo = _ipv4_only
+
+
 def meta_model_configured() -> bool:
     return bool(os.environ.get("META_MODEL_API_KEY", "").strip())
 
 
 def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
     """Call Muse Spark for draft planning; a failed call never becomes a fabricated plan."""
+    _force_ipv4_if_configured()
     key = os.environ.get("META_MODEL_API_KEY", "").strip()
     if not key:
         return {"status": "staged", "meta_served": False, "reason": "META_MODEL_API_KEY is not configured."}
@@ -1004,6 +1020,7 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
 
 def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
     """Generate a draft image; failures remain explicitly staged."""
+    _force_ipv4_if_configured()
     key = os.environ.get("META_MODEL_API_KEY", "").strip()
     if not key:
         return {"status": "staged", "image_served": False, "reason": "META_MODEL_API_KEY is not configured."}
