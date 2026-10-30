@@ -99,9 +99,8 @@ def meta_model_call(prompt: str) -> dict[str, Any]:
     key = os.environ.get("META_MODEL_API_KEY", "")
     if not key:
         return {"meta_served": False, "model": None, "reason": "META_MODEL_API_KEY not set — fallback, not Meta-served.", "output": None}
-    base = os.environ.get("META_MODEL_API_BASE", "https://api.meta.ai").rstrip("/")
-    model = os.environ.get("META_MUSE_MODEL", "muse-spark")
-    endpoint = f"{base}/v1/messages"
+    model = "muse-spark-1.3"
+    endpoint = "https://api.meta.ai/v1/chat/completions"
     body = _json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}]}).encode()
     request = _req.Request(endpoint, data=body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"})
     try:

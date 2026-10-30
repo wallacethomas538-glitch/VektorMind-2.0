@@ -1,8 +1,10 @@
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
+import json
 
 from vektorflow.app import app
+import vektorflow.agents as agents
 
 client = TestClient(app)
 
@@ -75,6 +77,45 @@ def test_mission_loop_is_staged_with_visible_pivot_replan():
     assert body["agents"]["davinci"]["muse_image"]["image_served"] is False
     assert body["persistence"]["status"] == "unconfigured"
     assert body["persistence"]["stored"] is False
+
+
+def test_muse_spark_live_planner_call_is_mocked(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": "draft plan from Muse Spark"}}]}).encode()
+
+    seen = {}
+    def fake_urlopen(request, timeout):
+        seen.update({"url": request.full_url, "timeout": timeout, "body": json.loads(request.data)})
+        return FakeResponse()
+
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    monkeypatch.setattr(agents.urllib_request, "urlopen", fake_urlopen)
+    body = _new_mission()
+
+    assert seen["url"] == "https://api.meta.ai/v1/chat/completions"
+    assert seen["body"]["model"] == "muse-spark-1.3"
+    assert "test-only-key" not in json.dumps(body)
+    assert body["meta_served"] is True
+    assert body["coordination"]["muse_spark"]["output"] == "draft plan from Muse Spark"
+    assert body["coordination"]["draft_only"] is True
+
+
+def test_muse_spark_failure_stays_staged(monkeypatch):
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    def failed_urlopen(*args, **kwargs):
+        raise TimeoutError("test failure")
+    monkeypatch.setattr(agents.urllib_request, "urlopen", failed_urlopen)
+    body = _new_mission()
+
+    assert body["meta_served"] is False
+    assert body["coordination"]["planner"] == "Muse Spark dynamic planning (staged)"
+    assert body["coordination"]["muse_spark"]["status"] == "staged"
+    assert "failed" in body["coordination"]["muse_spark"]["reason"]
 
 
 def test_each_mission_gets_its_own_receipt():
