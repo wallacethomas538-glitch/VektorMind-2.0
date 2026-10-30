@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import os
 import secrets
+import socket
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +40,7 @@ from .agents import (
     rook,
     run_mission,
     meta_model_configured,
+    meta_api_base_url,
     sentinel,
     shadow,
     smaug,
@@ -139,6 +144,49 @@ async def health():
         "meta_served": meta_model_configured(),
         "image_served": coordination_agents.meta_model_configured(),
         "persistence": coordination_agents.persistence_status(),
+    }
+
+
+@app.get("/api/v1/meta-diagnostics", tags=["Cerebrum"])
+async def meta_diagnostics():
+    """Draft-only network diagnostics; never includes credentials or response bodies."""
+    base = meta_api_base_url()
+    host = urlparse(base).hostname
+    addresses = []
+    dns_error = None
+    tcp_connected = False
+    tcp_error = None
+    probe_status = None
+    probe_headers = {}
+    if host:
+        try:
+            addresses = sorted({item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)})
+        except OSError as exc:
+            dns_error = type(exc).__name__
+        try:
+            with socket.create_connection((host, 443), timeout=5):
+                tcp_connected = True
+        except OSError as exc:
+            tcp_error = type(exc).__name__
+    try:
+        probe = urllib_request.Request(f"{base}/v1/chat/completions", method="HEAD")
+        with urllib_request.urlopen(probe, timeout=5) as response:
+            probe_status = response.status
+            probe_headers = dict(response.headers.items())
+    except HTTPError as exc:
+        probe_status = exc.code
+        probe_headers = dict(exc.headers.items()) if exc.headers else {}
+    except (URLError, TimeoutError, OSError) as exc:
+        probe_status = None
+        probe_headers = {"error_type": type(exc).__name__}
+    return {
+        "host": host,
+        "resolved_ips": addresses,
+        "dns_error": dns_error,
+        "tcp_connect": tcp_connected,
+        "tcp_error": tcp_error,
+        "probe": {"method": "HEAD", "url": f"{base}/v1/chat/completions", "status": probe_status, "headers": probe_headers},
+        "proxy_configured": bool(os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")),
     }
 
 

@@ -108,6 +108,34 @@ def test_muse_spark_live_planner_call_is_mocked(monkeypatch):
     assert body["coordination"]["draft_only"] is True
 
 
+def test_meta_base_override_applies_to_spark_and_image(monkeypatch):
+    seen = []
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": "plan"}}]} if seen[-1].endswith("completions") else {"data": [{"url": "https://cdn.example.test/x"}]}).encode()
+    def fake_urlopen(request, timeout):
+        seen.append(request.full_url)
+        return Response()
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    monkeypatch.setenv("META_API_BASE_URL", "https://egress.example.test")
+    monkeypatch.setattr(agents.urllib_request, "urlopen", fake_urlopen)
+    _new_mission()
+    assert seen == ["https://egress.example.test/v1/chat/completions", "https://egress.example.test/v1/images/generations"]
+
+
+def test_meta_diagnostics_is_draft_only_and_has_no_key(monkeypatch):
+    monkeypatch.setenv("META_API_BASE_URL", "https://api.example.test")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example.test:8080")
+    response = client.get("/api/v1/meta-diagnostics")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["host"] == "api.example.test"
+    assert body["proxy_configured"] is True
+    assert "META_MODEL_API_KEY" not in json.dumps(body)
+
+
 def test_muse_spark_failure_stays_staged(monkeypatch):
     monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
     def failed_urlopen(*args, **kwargs):

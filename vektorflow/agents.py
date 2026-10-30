@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import re
 import threading
@@ -25,6 +26,8 @@ from .intelligence import (
     default_competitors,
     seed_for,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -939,10 +942,24 @@ DRAFT_ONLY_BLOCKED_ACTIONS = frozenset(
     }
 )
 
-MUSE_SPARK_ENDPOINT = "https://api.meta.ai/v1/chat/completions"
 MUSE_SPARK_MODEL = "muse-spark-1.3"
-MUSE_IMAGE_ENDPOINT = "https://api.meta.ai/v1/images/generations"
 MUSE_IMAGE_MODEL = "muse-image-1.0"
+
+
+def meta_api_base_url() -> str:
+    return os.environ.get("META_API_BASE_URL", "https://api.meta.ai").rstrip("/")
+
+
+def meta_endpoint(path: str) -> str:
+    return f"{meta_api_base_url()}/v1/{path.lstrip('/')}"
+
+
+def _log_meta_failure(url: str, exc: Exception) -> None:
+    headers = getattr(exc, "headers", None)
+    safe_headers = dict(headers.items()) if headers else {}
+    safe_headers.pop("authorization", None)
+    safe_headers.pop("proxy-authorization", None)
+    logger.warning("Meta API failure url=%s status=%s headers=%s", url, getattr(exc, "code", None), safe_headers)
 
 
 def meta_model_configured() -> bool:
@@ -960,7 +977,7 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
     )
     body = json.dumps({"model": MUSE_SPARK_MODEL, "messages": [{"role": "user", "content": prompt}]}).encode()
     req = urllib_request.Request(
-        MUSE_SPARK_ENDPOINT, data=body,
+        meta_endpoint("chat/completions"), data=body,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST"
     )
     try:
@@ -971,7 +988,11 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         if not output:
             return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned no usable planning output."}
         return {"status": "live", "meta_served": True, "model": MUSE_SPARK_MODEL, "output": output}
-    except (HTTPError, URLError, TimeoutError, ValueError):
+    except HTTPError as exc:
+        _log_meta_failure(req.full_url, exc)
+        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed HTTP {exc.code}; planning output remains staged."}
+    except (URLError, TimeoutError, ValueError) as exc:
+        _log_meta_failure(req.full_url, exc)
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
     except Exception:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
@@ -985,7 +1006,7 @@ def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
     prompt = "Create a draft-only product image for Wallace's approval. Objective: " + json.dumps(objective, sort_keys=True)
     body = json.dumps({"model": MUSE_IMAGE_MODEL, "prompt": prompt}).encode()
     req = urllib_request.Request(
-        MUSE_IMAGE_ENDPOINT, data=body,
+        meta_endpoint("images/generations"), data=body,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST"
     )
     try:
@@ -996,7 +1017,11 @@ def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(image, dict) or not (image.get("url") or image.get("b64_json")):
             return {"status": "staged", "image_served": False, "reason": "Muse Image returned no usable image output."}
         return {"status": "staged_for_approval", "image_served": True, "model": MUSE_IMAGE_MODEL, "image": image}
-    except (HTTPError, URLError, TimeoutError, ValueError):
+    except HTTPError as exc:
+        _log_meta_failure(req.full_url, exc)
+        return {"status": "staged", "image_served": False, "reason": f"Muse Image API call failed HTTP {exc.code}; image remains staged."}
+    except (URLError, TimeoutError, ValueError) as exc:
+        _log_meta_failure(req.full_url, exc)
         return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
     except Exception:
         return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
