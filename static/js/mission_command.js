@@ -143,6 +143,9 @@
   function renderReceipt(receipt) {
     const plan = receipt.plan || [];
     const evidence = receipt.evidence || [];
+    const approvals = receipt.approvals || [];
+    const pending = approvals.filter((a) => a.status === "pending").length;
+    const approved = receipt.status === "approved";
     $("#mc-receipt").innerHTML = `
       <div class="mc-kv"><span>mission_id</span><code>${esc(receipt.mission_id)}</code></div>
       <div class="mc-kv"><span>receipt_id</span><code>${esc(receipt.receipt_id)}</code></div>
@@ -153,7 +156,45 @@
       <div class="mc-kv"><span>image_served</span><b class="${receipt.image_served ? "bad" : "good"}">${String(receipt.image_served)}</b></div>
       <div class="mc-kv"><span>kill_switch</span><b>${String(receipt.kill_switch)}</b></div>
       <div class="mc-kv"><span>persistence</span><b>${esc(receipt.persistence?.status || "unconfigured")}</b></div>
-      <p class="hint">Staged for Wallace approval. No publish, price change, send, provider call, deploy, or money move.</p>`;
+      <div class="mc-kv"><span>approvals</span><b>${approved ? `approved by ${esc(receipt.approved_by || "Wallace")}` : `${pending} pending`}</b></div>
+      ${approved
+        ? `<p class="hint">Approved by Wallace. Drafts stay draft-only — nothing was published, sent, or served.</p>`
+        : `<button class="btn primary" type="button" id="mc-approve" data-mission="${esc(receipt.mission_id)}" style="width:100%;margin-top:12px;padding:14px;font-size:16px;">Approve mission</button>
+           <p class="hint">Staged for Wallace approval. Approving records your decision only — no publish, price change, send, provider call, deploy, or money move.</p>`}`;
+    const approveBtn = $("#mc-approve");
+    if (approveBtn) {
+      approveBtn.addEventListener("click", () => approveMission(approveBtn.dataset.mission, approveBtn));
+    }
+  }
+
+  async function approveMission(missionId, button) {
+    if (mc.busy) return;
+    mc.busy = true;
+    button.disabled = true;
+    button.textContent = "Approving…";
+    try {
+      const result = await call(`/api/v1/receipt/${encodeURIComponent(missionId)}/approve`, {});
+      if (result.ok) {
+        renderReceipt(result.data);
+        try {
+          const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || "null");
+          if (cached) {
+            cached.receipt = result.data;
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+          }
+        } catch { /* cache is best-effort */ }
+      } else {
+        button.disabled = false;
+        button.textContent = "Approve mission";
+        $("#mc-receipt").insertAdjacentHTML("beforeend", statusLine("bad", `Approval failed · HTTP ${result.status}`));
+      }
+    } catch (err) {
+      button.disabled = false;
+      button.textContent = "Approve mission";
+      $("#mc-receipt").insertAdjacentHTML("beforeend", statusLine("bad", `Approval failed · ${esc(err.message)}`));
+    } finally {
+      mc.busy = false;
+    }
   }
 
   async function runMission() {
