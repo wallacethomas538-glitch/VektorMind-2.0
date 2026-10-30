@@ -331,3 +331,42 @@ def test_draft_endpoints_respect_kill_switch():
         response = client.post(path, json=payload)
         assert response.status_code == 503, path
     client.post("/api/v1/kill-switch", json={"engage": False})
+
+
+def test_muse_spark_401_reason_names_http_status(monkeypatch):
+    """A rejected key must surface HTTP 401 in the staged reason, not a bare 'failed'."""
+    import io
+    from urllib.error import HTTPError
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    def denied(*args, **kwargs):
+        raise HTTPError("https://api.meta.ai/v1/chat/completions", 401, "Unauthorized", {}, io.BytesIO(b""))
+    monkeypatch.setattr(agents.urllib_request, "urlopen", denied)
+    result = agents._muse_spark_plan_call({"goal": "test"})
+    assert result["status"] == "staged"
+    assert result["meta_served"] is False
+    assert "401" in result["reason"]
+    assert "test-only-key" not in result["reason"]
+
+
+def test_muse_spark_500_reason_names_http_status(monkeypatch):
+    import io
+    from urllib.error import HTTPError
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    def broken(*args, **kwargs):
+        raise HTTPError("https://api.meta.ai/v1/chat/completions", 500, "Server Error", {}, io.BytesIO(b""))
+    monkeypatch.setattr(agents.urllib_request, "urlopen", broken)
+    result = agents._muse_spark_plan_call({"goal": "test"})
+    assert "500" in result["reason"]
+
+
+def test_muse_image_401_reason_names_http_status(monkeypatch):
+    import io
+    from urllib.error import HTTPError
+    monkeypatch.setenv("META_MODEL_API_KEY", "test-only-key")
+    def denied(*args, **kwargs):
+        raise HTTPError("https://api.meta.ai/v1/images/generations", 401, "Unauthorized", {}, io.BytesIO(b""))
+    monkeypatch.setattr(agents.urllib_request, "urlopen", denied)
+    result = agents._muse_image_generation_call({"goal": "test"})
+    assert result["status"] == "staged"
+    assert result["image_served"] is False
+    assert "401" in result["reason"]

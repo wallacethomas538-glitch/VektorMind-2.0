@@ -971,8 +971,14 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         if not output:
             return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned no usable planning output."}
         return {"status": "live", "meta_served": True, "model": MUSE_SPARK_MODEL, "output": output}
-    except (HTTPError, URLError, TimeoutError, ValueError):
-        return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
+    except HTTPError as e:
+        # Surface the HTTP status so a failed key (401) vs outage (5xx) is diagnosable.
+        # The key itself is never included in the reason.
+        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed (HTTP {e.code}); planning output remains staged."}
+    except (URLError, TimeoutError) as e:
+        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed ({type(e).__name__}); planning output remains staged."}
+    except ValueError:
+        return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned unparseable output; planning output remains staged."}
     except Exception:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
 
@@ -996,8 +1002,12 @@ def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(image, dict) or not (image.get("url") or image.get("b64_json")):
             return {"status": "staged", "image_served": False, "reason": "Muse Image returned no usable image output."}
         return {"status": "staged_for_approval", "image_served": True, "model": MUSE_IMAGE_MODEL, "image": image}
-    except (HTTPError, URLError, TimeoutError, ValueError):
-        return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
+    except HTTPError as e:
+        return {"status": "staged", "image_served": False, "reason": f"Muse Image API call failed (HTTP {e.code}); image remains staged."}
+    except (URLError, TimeoutError) as e:
+        return {"status": "staged", "image_served": False, "reason": f"Muse Image API call failed ({type(e).__name__}); image remains staged."}
+    except ValueError:
+        return {"status": "staged", "image_served": False, "reason": "Muse Image returned unparseable output; image remains staged."}
     except Exception:
         return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
 
