@@ -137,7 +137,7 @@ async def health():
         "kill_switch": coordination_agents.kill_switch_state(),
         "draft_only": True,
         "meta_served": meta_model_configured(),
-        "image_served": False,
+        "image_served": coordination_agents.meta_model_configured(),
         "persistence": coordination_agents.persistence_status(),
     }
 

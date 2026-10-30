@@ -941,6 +941,8 @@ DRAFT_ONLY_BLOCKED_ACTIONS = frozenset(
 
 MUSE_SPARK_ENDPOINT = "https://api.meta.ai/v1/chat/completions"
 MUSE_SPARK_MODEL = "muse-spark-1.3"
+MUSE_IMAGE_ENDPOINT = "https://api.meta.ai/v1/images/generations"
+MUSE_IMAGE_MODEL = "muse-image-1.0"
 
 
 def meta_model_configured() -> bool:
@@ -973,6 +975,31 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
     except Exception:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
+
+
+def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate a draft image; failures remain explicitly staged."""
+    key = os.environ.get("META_MODEL_API_KEY", "").strip()
+    if not key:
+        return {"status": "staged", "image_served": False, "reason": "META_MODEL_API_KEY is not configured."}
+    prompt = "Create a draft-only product image for Wallace's approval. Objective: " + json.dumps(objective, sort_keys=True)
+    body = json.dumps({"model": MUSE_IMAGE_MODEL, "prompt": prompt}).encode()
+    req = urllib_request.Request(
+        MUSE_IMAGE_ENDPOINT, data=body,
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=30) as response:
+            payload = json.loads(response.read().decode())
+        data = payload.get("data") if isinstance(payload, dict) else None
+        image = data[0] if data else None
+        if not isinstance(image, dict) or not (image.get("url") or image.get("b64_json")):
+            return {"status": "staged", "image_served": False, "reason": "Muse Image returned no usable image output."}
+        return {"status": "staged_for_approval", "image_served": True, "model": MUSE_IMAGE_MODEL, "image": image}
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
+    except Exception:
+        return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
 
 
 class KillSwitchEngaged(RuntimeError):
@@ -1222,6 +1249,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
     product = dossier["product"]
     objective = _mission_objective(req, product)
     muse_spark = _muse_spark_plan_call(objective)
+    muse_image = _muse_image_generation_call(objective)
     plan = _build_plan(req, product)
     _mark_plan_outcomes(plan)
 
@@ -1247,6 +1275,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
         "objective": objective,
         "planner": "Muse Spark live planning" if muse_spark["meta_served"] else "Muse Spark dynamic planning (staged)",
         "muse_spark": muse_spark,
+        "muse_image": muse_image,
         "plan": plan,
         "events": events,
         "trace": _trace(plan, gate, receipt_id),
@@ -1257,7 +1286,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
         "kill_switch": False,
         "kill_switch_at_staging": False,
         "meta_served": muse_spark["meta_served"],
-        "image_served": False,
+        "image_served": muse_image["image_served"],
         "draft_only": True,
         "approved_by": None,
         "receipt": {"id": receipt_id, "status": "staged_for_approval", "issued_at": _now()},
@@ -1282,16 +1311,14 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
     dossier["coordination"] = coordination
     dossier["persistence"] = persistence_report
     dossier["meta_served"] = muse_spark["meta_served"]
-    dossier["image_served"] = False
+    dossier["image_served"] = muse_image["image_served"]
     dossier["draft_only"] = True
     dossier["agents"]["davinci"]["muse_image"] = {
-        "status": "not_requested",
-        "generated": False,
-        "served": False,
-        "image_served": False,
-        "provider": "none",
-        "provider_contacted": False,
-        "reason": "Muse Image requires credits plus a second human approval. No call was made.",
+        **muse_image,
+        "generated": bool(muse_image["image_served"]),
+        "served": bool(muse_image["image_served"]),
+        "provider": "meta" if muse_image["image_served"] else "none",
+        "provider_contacted": bool(meta_model_configured()),
     }
     return dossier
 
