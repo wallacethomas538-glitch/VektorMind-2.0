@@ -971,14 +971,8 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         if not output:
             return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned no usable planning output."}
         return {"status": "live", "meta_served": True, "model": MUSE_SPARK_MODEL, "output": output}
-    except HTTPError as e:
-        # Surface the HTTP status so a failed key (401) vs outage (5xx) is diagnosable.
-        # The key itself is never included in the reason.
-        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed (HTTP {e.code}); planning output remains staged."}
-    except (URLError, TimeoutError) as e:
-        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed ({type(e).__name__}); planning output remains staged."}
-    except ValueError:
-        return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned unparseable output; planning output remains staged."}
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
     except Exception:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
 
@@ -1002,12 +996,8 @@ def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(image, dict) or not (image.get("url") or image.get("b64_json")):
             return {"status": "staged", "image_served": False, "reason": "Muse Image returned no usable image output."}
         return {"status": "staged_for_approval", "image_served": True, "model": MUSE_IMAGE_MODEL, "image": image}
-    except HTTPError as e:
-        return {"status": "staged", "image_served": False, "reason": f"Muse Image API call failed (HTTP {e.code}); image remains staged."}
-    except (URLError, TimeoutError) as e:
-        return {"status": "staged", "image_served": False, "reason": f"Muse Image API call failed ({type(e).__name__}); image remains staged."}
-    except ValueError:
-        return {"status": "staged", "image_served": False, "reason": "Muse Image returned unparseable output; image remains staged."}
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
     except Exception:
         return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
 
@@ -1351,3 +1341,56 @@ def get_receipt(mission_id: str) -> Optional[Dict[str, Any]]:
     receipt["meta_served"] = bool(stored.get("meta_served", False))
     receipt["image_served"] = bool(stored.get("image_served", False))
     return receipt
+
+
+def approve_receipt(mission_id: str) -> Optional[Dict[str, Any]]:
+    """Manually approve a staged mission's pending approvals.
+
+    Approval flips status only. It never publishes, changes prices, sends
+    messages, calls providers, deploys, or moves money — the draft-only
+    invariant is preserved and the Aegis Gate is untouched. Idempotent:
+    approving an already-approved receipt returns it unchanged.
+    """
+
+    with _RECEIPT_LOCK:
+        stored = MISSION_RECEIPTS.get(mission_id)
+    if stored is None:
+        stored = persistence.fetch_receipt(mission_id)
+        if stored is None:
+            return None
+
+    pending = [
+        approval
+        for approval in stored.get("approvals") or []
+        if approval.get("status") == "pending"
+    ]
+    if not pending and stored.get("status") == "approved":
+        return get_receipt(mission_id)
+
+    receipt = copy.deepcopy(stored)
+    now = _now()
+    for approval in receipt.get("approvals") or []:
+        if approval.get("status") == "pending":
+            approval["status"] = "approved"
+            approval["decided_at"] = now
+    receipt["status"] = "approved"
+    receipt["approved_by"] = "Wallace"
+    receipt["approved_at"] = now
+    inner = receipt.get("receipt")
+    if isinstance(inner, dict):
+        inner["status"] = "approved"
+    for entry in receipt.get("trace") or []:
+        if entry.get("stage") == "approval":
+            entry["status"] = "approved"
+    # Draft-only invariant: approval records a decision; it executes nothing.
+    receipt["draft_only"] = True
+
+    with _RECEIPT_LOCK:
+        MISSION_RECEIPTS[mission_id] = copy.deepcopy(receipt)
+
+    try:
+        persistence.save_mission(receipt)
+    except persistence.PersistenceError:
+        pass  # memory holds the truth; persistence is best-effort
+
+    return get_receipt(mission_id)
