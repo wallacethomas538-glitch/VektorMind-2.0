@@ -1022,13 +1022,16 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
 
 
-def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
+def _muse_image_generation_call(objective: Dict[str, Any], prompt_override: Optional[str] = None) -> Dict[str, Any]:
     """Generate a draft image; failures remain explicitly staged."""
     _force_ipv4_if_configured()
     key = os.environ.get("META_MODEL_API_KEY", "").strip()
     if not key:
         return {"status": "staged", "image_served": False, "reason": "META_MODEL_API_KEY is not configured."}
-    prompt = "Create a draft-only product image for Wallace's approval. Objective: " + json.dumps(objective, sort_keys=True)
+    if prompt_override:
+        prompt = prompt_override
+    else:
+        prompt = "Create a draft-only product image for Wallace's approval. Objective: " + json.dumps(objective, sort_keys=True)
     body = json.dumps({"model": MUSE_IMAGE_MODEL, "prompt": prompt}).encode()
     req = urllib_request.Request(
         meta_endpoint("images/generations"), data=body,
@@ -1056,6 +1059,72 @@ def _muse_image_generation_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "staged", "image_served": False, "reason": "Muse Image returned unparseable output; image remains staged."}
     except Exception:
         return {"status": "staged", "image_served": False, "reason": "Muse Image API call failed; image remains staged."}
+
+
+# --- Standalone Muse Image generation (dashboard image screen) ---
+# Two-step, draft-only by design: stage (Aegis-scored, nothing generated)
+# then approve (owner tap runs the real Muse Image call).
+_STANDALONE_IMAGE_REQUESTS: Dict[str, Dict[str, Any]] = {}
+_STANDALONE_IMAGE_LOCK = threading.Lock()
+
+
+def stage_image_generation(prompt: str) -> Dict[str, Any]:
+    """Stage a standalone image request. Aegis-scored; nothing is generated yet."""
+    clean = (prompt or "").strip()
+    if not clean:
+        return {"status": "rejected", "image_served": False, "reason": "Prompt is empty."}
+    if len(clean) > 1000:
+        return {"status": "rejected", "image_served": False, "reason": "Prompt is too long (max 1000 characters)."}
+    gate = aegis_gate("generate_image", 2)
+    if not gate["allowed"]:
+        return {"status": "blocked", "image_served": False, "reason": "Aegis Gate blocked this action.", "aegis_gate": gate}
+    request_id = uuid.uuid4().hex[:12]
+    record = {
+        "request_id": request_id,
+        "prompt": clean,
+        "status": "staged_for_approval",
+        "aegis_gate": gate,
+        "staged_at": datetime.now(timezone.utc).isoformat(),
+    }
+    with _STANDALONE_IMAGE_LOCK:
+        _STANDALONE_IMAGE_REQUESTS[request_id] = record
+    return {
+        "status": "staged_for_approval",
+        "image_served": False,
+        "request_id": request_id,
+        "prompt": clean,
+        "aegis_gate": gate,
+        "message": "Image request staged. Approve to generate with Muse Image.",
+    }
+
+
+def approve_image_generation(request_id: str) -> Dict[str, Any]:
+    """Owner approval: run the staged prompt through Muse Image, return the image."""
+    with _STANDALONE_IMAGE_LOCK:
+        record = _STANDALONE_IMAGE_REQUESTS.get(request_id)
+    if record is None:
+        return {"status": "not_found", "image_served": False, "reason": f"No staged image request '{request_id}'."}
+    result = _muse_image_generation_call({}, prompt_override=record["prompt"])
+    if result.get("image_served"):
+        image = result.get("image") or {}
+        with _STANDALONE_IMAGE_LOCK:
+            record["status"] = "generated"
+            record["generated_at"] = datetime.now(timezone.utc).isoformat()
+        return {
+            "status": "generated",
+            "image_served": True,
+            "request_id": request_id,
+            "model": result.get("model"),
+            "image_url": image.get("url"),
+            "image_b64": image.get("b64_json"),
+            "prompt": record["prompt"],
+        }
+    return {
+        "status": "staged",
+        "image_served": False,
+        "request_id": request_id,
+        "reason": result.get("reason", "Image generation did not complete."),
+    }
 
 
 class KillSwitchEngaged(RuntimeError):

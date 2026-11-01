@@ -182,3 +182,7 @@ class LayoutPreviewRequest(BaseModel):
     product_price: float = 39.0
     brand_name: Optional[str] = None
     page: str = "home"
+
+
+class ImageGenerateRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=1000)
