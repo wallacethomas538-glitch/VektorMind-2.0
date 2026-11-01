@@ -802,23 +802,77 @@
   }
 
   async function loadMuseImage(root) {
-    root.innerHTML = loading("Reading the staged slot…");
-    const result = await request("/health");
-    const health = result.ok && result.data ? result.data : {};
-    const imageServed = health.image_served === true;
+    const esc = (s) => String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     root.innerHTML = `
-      <div class="vhub-image-slot" role="img" aria-label="Muse Image display slot: staged, not generated yet">
+      <div class="vhub-image-slot" role="img" aria-label="Muse Image generator">
         <span class="vhub-image-slot-mark">MUSE IMAGE</span>
-        <p class="vhub-image-slot-title">staged, not generated yet</p>
-        <small>Display slot only. No image is generated, rendered, or served.</small>
+        <p class="vhub-image-slot-title">Generate a real image</p>
+        <small>Type a prompt, stage it through the Aegis Gate, then approve to generate.</small>
       </div>
-      <div class="vhub-status-grid">
-        ${card("image_served", String(imageServed), imageServed ? "bad" : "good")}
-        ${card("mode", "draft-only", "good")}
-        ${card("meta calls", "none", "warn")}
-        ${card("generation", "not run", "warn")}
+      <div class="vhub-image-form">
+        <textarea id="vhub-image-prompt" rows="3" maxlength="1000"
+          placeholder="Describe the image… e.g. a ceramic coating bottle on a car hood at sunset"></textarea>
+        <button class="btn primary" type="button" id="vhub-image-stage">Stage image request</button>
       </div>
-      <p class="hint">Draft-only. This panel makes no Meta or model call; it only shows the staged slot.</p>`;
+      <div id="vhub-image-result"></div>`;
+
+    const promptEl = root.querySelector("#vhub-image-prompt");
+    const stageBtn = root.querySelector("#vhub-image-stage");
+    const resultEl = root.querySelector("#vhub-image-result");
+
+    stageBtn.addEventListener("click", async () => {
+      const prompt = promptEl.value.trim();
+      if (!prompt) {
+        resultEl.innerHTML = `<p class="hint">Type a prompt first.</p>`;
+        return;
+      }
+      resultEl.innerHTML = loading("Staging through the Aegis Gate…");
+      const staged = await request("/api/v1/images/generate", { prompt });
+      const data = staged.ok && staged.data ? staged.data : null;
+      if (!data || data.status !== "staged_for_approval") {
+        const reason = (data && data.reason) || ("HTTP " + staged.status);
+        resultEl.innerHTML = `<p class="hint">Staging failed: ${esc(reason)}</p>`;
+        return;
+      }
+      const reqId = data.request_id;
+      const gate = data.aegis_gate || {};
+      resultEl.innerHTML = `
+        <div class="vhub-status-grid">
+          ${card("status", "staged_for_approval", "warn")}
+          ${card("aegis risk", String(gate.risk_score != null ? gate.risk_score : "?"), "good")}
+          ${card("request", esc(reqId), "good")}
+        </div>
+        <p class="hint">Aegis Gate passed. Nothing generated yet &mdash; your approval runs the Muse Image call.</p>
+        <button class="btn primary" type="button" id="vhub-image-approve">Approve &amp; generate</button>
+        <div id="vhub-image-output"></div>`;
+      root.querySelector("#vhub-image-approve").addEventListener("click", async () => {
+        const outEl = root.querySelector("#vhub-image-output");
+        outEl.innerHTML = loading("Generating with Muse Image…");
+        const gen = await request("/api/v1/images/generate/" + encodeURIComponent(reqId) + "/approve", {});
+        const gdata = gen.ok && gen.data ? gen.data : null;
+        if (!gdata || gdata.status !== "generated" || gdata.image_served !== true) {
+          const reason = (gdata && gdata.reason) || ("HTTP " + gen.status);
+          outEl.innerHTML = `<p class="hint">Generation did not complete: ${esc(reason)}</p>`;
+          return;
+        }
+        let imgHtml = `<p class="hint">Image generated, but no image payload returned.</p>`;
+        if (gdata.image_url) {
+          imgHtml = `<img src="${esc(gdata.image_url)}" alt="${esc(gdata.prompt)}" style="max-width:100%;border-radius:12px;" />`;
+        } else if (gdata.image_b64) {
+          imgHtml = `<img src="data:image/png;base64,${gdata.image_b64}" alt="${esc(gdata.prompt)}" style="max-width:100%;border-radius:12px;" />`;
+        }
+        outEl.innerHTML = `
+          <div class="vhub-status-grid">
+            ${card("status", "generated", "good")}
+            ${card("image_served", "true", "good")}
+            ${card("model", esc(gdata.model || "muse-image-1.0"), "good")}
+          </div>
+          ${imgHtml}
+          <p class="hint">Prompt: ${esc(gdata.prompt)}</p>`;
+      });
+    });
   }
 
   /* ---------- wiring ---------- */
