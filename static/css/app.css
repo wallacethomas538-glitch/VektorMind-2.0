@@ -1381,3 +1381,15 @@ body.vhub-open { overflow: hidden; }
   .vhub-v-sheen, .vhub-hud-bar i { animation: none !important; }
   .vhub-section-card, .vhub-section { transition: none; }
 }
+
+/* ---------- Talk to Spark chat panel ---------- */
+.vhub-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.vhub-chat-log {
+  max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line, #223); border-radius: 10px; padding: 10px; margin-bottom: 10px;
+}
+.vhub-chat-user, .vhub-chat-spark { padding: 8px 10px; border-radius: 8px; line-height: 1.45; font-size: 14px; }
+.vhub-chat-user { background: rgba(0, 0, 0, 0.25); align-self: flex-end; max-width: 92%; }
+.vhub-chat-spark { background: rgba(255, 255, 255, 0.05); align-self: flex-start; max-width: 92%; }
+.vhub-chat-form { display: flex; gap: 8px; align-items: flex-end; }
+.vhub-chat-form textarea { flex: 1; resize: vertical; }

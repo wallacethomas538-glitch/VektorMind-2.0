@@ -47,6 +47,7 @@
     receipts: { eyebrow: "Staged approvals", title: "Receipts", load: loadReceipts },
     kill: { eyebrow: "Aegis Gate", title: "Kill Switch", load: loadKill },
     image: { eyebrow: "Staged slot", title: "Muse Image", load: loadMuseImage },
+    chat: { eyebrow: "Live talk", title: "Talk to Spark", load: loadChat },
   };
 
   let angle = -Math.PI / 2;
@@ -945,6 +946,109 @@
           <p class="hint">Prompt: ${esc(gdata.prompt)}</p>`;
         loadImageHistory();
       });
+    });
+  }
+
+  /* ---------- live chat with Muse Spark (talk + hear) ---------- */
+
+  const CHAT_SPEAK_KEY = "vm2-chat-speak";
+  let chatHistory = [];
+
+  function chatSpeakEnabled() {
+    return localStorage.getItem(CHAT_SPEAK_KEY) !== "off";
+  }
+
+  function speakReply(text) {
+    if (!chatSpeakEnabled()) return;
+    if (!("speechSynthesis" in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const clean = String(text || "")
+        .replace(/[*_#`>]/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .slice(0, 600);
+      if (!clean.trim()) return;
+      const utter = new SpeechSynthesisUtterance(clean);
+      utter.rate = 1.0;
+      window.speechSynthesis.speak(utter);
+    } catch { /* speech unavailable — text still shows */ }
+  }
+
+  function chatBubble(role, text) {
+    const esc = (v) => String(v == null ? "" : v)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const cls = role === "user" ? "vhub-chat-user" : "vhub-chat-spark";
+    const who = role === "user" ? "You" : "Spark";
+    return `<div class="${cls}"><strong>${who}:</strong> ${esc(text)}</div>`;
+  }
+
+  async function loadChat(root) {
+    root.innerHTML = `
+      <div class="vhub-chat-head">
+        <p class="eyebrow">Live conversation · Muse Spark</p>
+        <button class="btn" type="button" id="vhub-chat-speak" aria-label="Toggle voice replies"></button>
+      </div>
+      <div id="vhub-chat-log" class="vhub-chat-log" aria-live="polite">
+        <p class="hint">Say hello — every reply is a live Muse Spark call.</p>
+      </div>
+      <div class="vhub-chat-form">
+        <textarea id="vhub-chat-input" rows="2" maxlength="2000" placeholder="Talk to Spark…"></textarea>
+        <button class="btn primary" type="button" id="vhub-chat-send">Send</button>
+      </div>
+      <p class="hint">Replies are spoken aloud when the speaker is on. Each message is a small Meta API call.</p>`;
+
+    const logEl = root.querySelector("#vhub-chat-log");
+    const inputEl = root.querySelector("#vhub-chat-input");
+    const sendBtn = root.querySelector("#vhub-chat-send");
+    const speakBtn = root.querySelector("#vhub-chat-speak");
+
+    const paintSpeak = () => { speakBtn.textContent = chatSpeakEnabled() ? "🔊 Voice on" : "🔇 Voice off"; };
+    paintSpeak();
+    speakBtn.addEventListener("click", () => {
+      localStorage.setItem(CHAT_SPEAK_KEY, chatSpeakEnabled() ? "off" : "on");
+      if (!chatSpeakEnabled()) window.speechSynthesis && window.speechSynthesis.cancel();
+      paintSpeak();
+    });
+
+    // Re-render any earlier turns when the panel reopens.
+    logEl.innerHTML = chatHistory.length
+      ? chatHistory.map((m) => chatBubble(m.role, m.content)).join("")
+      : `<p class="hint">Say hello — every reply is a live Muse Spark call.</p>`;
+
+    async function sendChat() {
+      const text = inputEl.value.trim();
+      if (!text || sendBtn.disabled) return;
+      sendBtn.disabled = true;
+      inputEl.value = "";
+      chatHistory.push({ role: "user", content: text });
+      logEl.innerHTML = chatHistory.map((m) => chatBubble(m.role, m.content)).join("")
+        + `<div class="vhub-chat-spark"><strong>Spark:</strong> <span class="hint">thinking…</span></div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+      try {
+        const res = await fetch("/api/v1/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, history: chatHistory.slice(0, -1) }),
+        });
+        const data = await res.json();
+        const reply = data.reply || data.reason || "No reply came back.";
+        chatHistory.push({ role: "assistant", content: reply });
+        if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+        logEl.innerHTML = chatHistory.map((m) => chatBubble(m.role, m.content)).join("");
+        speakReply(reply);
+      } catch (err) {
+        chatHistory.pop();
+        logEl.innerHTML = chatHistory.map((m) => chatBubble(m.role, m.content)).join("")
+          + `<p class="hint">Couldn't reach Spark. Try again.</p>`;
+      } finally {
+        sendBtn.disabled = false;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    sendBtn.addEventListener("click", sendChat);
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
     });
   }
 

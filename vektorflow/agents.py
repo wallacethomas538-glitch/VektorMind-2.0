@@ -1023,6 +1023,54 @@ def _muse_spark_plan_call(objective: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; planning output remains staged."}
 
 
+def chat_with_spark(messages: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Live conversation with Muse Spark. A failed call never becomes a fabricated reply."""
+    _force_ipv4_if_configured()
+    key = os.environ.get("META_MODEL_API_KEY", "").strip()
+    if not key:
+        return {"status": "staged", "meta_served": False, "reason": "META_MODEL_API_KEY is not configured."}
+    system = (
+        "You are the voice of VektorMind 2.0, a mission-operations dashboard. "
+        "Keep replies short and plainspoken — the owner listens to them read aloud. "
+        "No markdown, no bullet lists, no code blocks. "
+        "If asked to publish, price, move money, send messages, or deploy, "
+        "say those need the owner's approval tap."
+    )
+    chat_messages = [{"role": "system", "content": system}]
+    for m in (messages or [])[-20:]:
+        role = m.get("role") if m.get("role") in ("user", "assistant") else "user"
+        content = str(m.get("content") or "")[:2000]
+        if content:
+            chat_messages.append({"role": role, "content": content})
+    body = json.dumps({"model": MUSE_SPARK_MODEL, "messages": chat_messages}).encode()
+    req = urllib_request.Request(
+        meta_endpoint("chat/completions"), data=body,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }, method="POST"
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=30) as response:
+            payload = json.loads(response.read().decode())
+        choices = payload.get("choices") if isinstance(payload, dict) else None
+        output = choices[0].get("message", {}).get("content") if choices else None
+        if not output:
+            return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned no usable reply."}
+        return {"status": "live", "meta_served": True, "model": MUSE_SPARK_MODEL, "reply": output}
+    except HTTPError as e:
+        _log_meta_failure(req.full_url, e)
+        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed (HTTP {e.code}); no reply generated."}
+    except (URLError, TimeoutError) as e:
+        _log_meta_failure(req.full_url, e)
+        return {"status": "staged", "meta_served": False, "reason": f"Muse Spark call failed ({type(e).__name__}); no reply generated."}
+    except ValueError:
+        return {"status": "staged", "meta_served": False, "reason": "Muse Spark returned unparseable output; no reply generated."}
+    except Exception:
+        return {"status": "staged", "meta_served": False, "reason": "Muse Spark call failed; no reply generated."}
+
+
 def _muse_image_generation_call(objective: Dict[str, Any], prompt_override: Optional[str] = None) -> Dict[str, Any]:
     """Generate a draft image; failures remain explicitly staged."""
     _force_ipv4_if_configured()
