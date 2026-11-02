@@ -37,6 +37,7 @@ from .agents import (
     echo_presets,
     forecast,
     get_generated_images,
+    get_staged_image_request,
     get_latest_receipt,
     get_receipt,
     hawk,
@@ -383,7 +384,9 @@ async def images_generate(req: ImageGenerateRequest, _: str = Depends(verify_api
 async def images_generate_approve(request_id: str, _: str = Depends(verify_api_key)):
     """Owner approval: run the staged prompt through Muse Image and return the image."""
     _ensure_tools_running()
-    result = approve_image_generation(request_id)
+    # The Meta call blocks (urllib, up to ~30s): keep it off the event loop
+    # so the dashboard stays responsive while an image generates.
+    result = await asyncio.to_thread(approve_image_generation, request_id)
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail=result.get("reason"))
     return result
@@ -405,6 +408,15 @@ async def chat_turn(payload: Dict[str, Any], _: str = Depends(verify_api_key)):
     turns.append({"role": "user", "content": message})
     result = await asyncio.to_thread(chat_with_spark, turns)
     return result
+
+
+@app.get("/api/v1/images/generate/{request_id}", tags=["DaVinci"])
+async def images_generate_status(request_id: str, _: str = Depends(verify_api_key)):
+    """Recover a staged image request's state (e.g. after a panel reload)."""
+    record = get_staged_image_request(request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No staged image request '{request_id}'.")
+    return record
 
 
 @app.get("/api/v1/images/history", tags=["DaVinci"])
