@@ -637,6 +637,20 @@
     const receipt = coordination.receipt || {};
     rememberReceipt(dossier.mission_id);
 
+    const planHtml = plan.map((step) => `
+        <li class="vhub-plan-step">
+          <span class="vhub-num">${String(step.step).padStart(2, "0")}</span>
+          <span><b>${esc(step.agent)}</b> — ${esc(step.task)}
+          <small>depends on: ${esc((step.depends_on || []).join(", ") || "none")}</small></span>
+          <span class="tag ${esc(step.status)}">${esc(step.status)}</span>
+        </li>`).join("");
+    const evidenceHtml = evidence.map((item) => `
+        <li class="vhub-evidence-item">
+          <b>${esc(item.agent)}</b>
+          <span class="tag ${esc(item.status)}">${esc(item.status)}</span>
+          <p>${esc(item.finding)}</p>
+          <small>${esc(item.kind)} · external calls ${item.external_calls}</small>
+        </li>`).join("");
     out.innerHTML = `
       <div class="vhub-status-grid">
         ${card("mission_id", `<code>${esc(dossier.mission_id || "—")}</code>`, "")}
@@ -645,6 +659,14 @@
         ${card("draft evidence", String(evidence.length), "")}
         ${card("meta_served", String(dossier.meta_served === true), dossier.meta_served ? "bad" : "good")}
         ${card("image_served", String(dossier.image_served === true), dossier.image_served ? "bad" : "good")}
+      </div>
+      <div class="vhub-note-card">
+        <p class="eyebrow">Plan · ${plan.length} steps</p>
+        <ul class="vhub-plan-list">${planHtml || "<li>No steps.</li>"}</ul>
+      </div>
+      <div class="vhub-note-card">
+        <p class="eyebrow">Evidence · ${evidence.length} draft reports</p>
+        <ul class="vhub-evidence-list">${evidenceHtml || "<li>No evidence.</li>"}</ul>
       </div>
       <div class="vhub-note-card">
         <p class="eyebrow">Receipt</p>
@@ -666,12 +688,25 @@
       return;
     }
     const ops = result.data;
+    if (ops.empty) {
+      root.innerHTML = `
+        <div class="vhub-note-card">
+          <p class="eyebrow">Live Ops</p>
+          <p><b>No mission staged yet.</b></p>
+          <p class="hint">${esc(ops.message || "Run a mission and Live Ops will read it.")}</p>
+          <div class="vhub-links">
+            <button class="btn primary" type="button" data-vhub-goto="missions">Run a mission</button>
+          </div>
+        </div>`;
+      return;
+    }
     const campaigns = ops.campaigns || {};
     const pricing = ops.pricing || {};
     const viral = ops.viral || {};
     root.innerHTML = `
       <div class="vhub-status-grid">
         ${card("product", esc(ops.product || "—"), "")}
+        ${card("from mission", `<code>${esc(ops.mission_id || "—")}</code>`, "good")}
         ${card("blended ROAS", Number(campaigns.blended_roas || 0).toFixed(2) + "x", "")}
         ${card("spend", money(campaigns.spend_today), "")}
         ${card("revenue", money(campaigns.revenue_today), "")}
@@ -681,7 +716,7 @@
       <div class="vhub-note-card">
         <p class="eyebrow">Support queue</p>
         <ul class="queue">${(ops.queue || []).map((item) => `
-          <li><b>${esc(item.from)}</b> · <span class="tag">${esc(item.intent)}</span><br>${esc(item.preview)}<br><small>${esc(item.age)}</small></li>`).join("") || "<li>No queue items.</li>"}
+          <li><b>${esc(item.from)}</b> · <span class="tag">${esc(item.intent)}</span><br>${esc(item.preview)}<br><small>${esc(item.age)}</small></li>`).join("") || `<li>${esc(ops.queue_note || "No queue items.")}</li>`}
         </ul>
       </div>
       <p class="hint">Draft read only. No campaign budget changed, no price applied, no message sent.</p>
@@ -745,6 +780,13 @@
       const plan = receipt.plan || [];
       const evidence = receipt.evidence || [];
       const approval = (receipt.approvals || [])[0] || {};
+      const planDetail = plan.map((step) => `
+          <li><b>${esc(step.agent)}</b> — ${esc(step.task)}
+          <span class="tag ${esc(step.status)}">${esc(step.status)}</span></li>`).join("");
+      const evidenceDetail = evidence.map((item) => `
+          <li><b>${esc(item.agent)}</b>
+          <span class="tag ${esc(item.status)}">${esc(item.status)}</span>
+          <br>${esc(item.finding)}</li>`).join("");
       return `<div class="vhub-receipt">
         <div class="vhub-receipt-top"><code>${esc(receipt.receipt_id || id)}</code><span class="tag LAUNCH">${esc(receipt.status || "staged")}</span></div>
         <div class="vhub-status-grid">
@@ -755,6 +797,13 @@
           ${card("kill_switch", String(receipt.kill_switch === true), receipt.kill_switch ? "bad" : "good")}
           ${card("approval", esc(approval.status || "pending"), "warn")}
         </div>
+        <details class="vhub-details">
+          <summary>Show plan &amp; evidence (${plan.length + evidence.length} items)</summary>
+          <p class="eyebrow">Plan</p>
+          <ul>${planDetail || "<li>No steps.</li>"}</ul>
+          <p class="eyebrow">Evidence</p>
+          <ul>${evidenceDetail || "<li>No evidence.</li>"}</ul>
+        </details>
         <small>Staged for Wallace approval. No publish, price change, send, provider call, deploy, or money move.</small>
       </div>`;
     }).join("");

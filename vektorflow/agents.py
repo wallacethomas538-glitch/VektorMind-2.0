@@ -929,6 +929,7 @@ AGENT_ROSTER = [
 # a per-mission receipt store, and policy gates. Draft-only by default.
 COORDINATION_KILL_SWITCH = False
 MISSION_RECEIPTS: Dict[str, Dict[str, Any]] = {}
+_LAST_MISSION_ID: Optional[str] = None
 _RECEIPT_LOCK = threading.Lock()
 
 DRAFT_ONLY_BLOCKED_ACTIONS = frozenset(
@@ -1366,6 +1367,7 @@ def persistence_status() -> Dict[str, Any]:
 
 def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
     """Objective -> dynamic plan -> 15 agents -> evidence -> gate -> staged receipt."""
+    global _LAST_MISSION_ID
 
     if COORDINATION_KILL_SWITCH:
         raise KillSwitchEngaged("kill_switch_engaged")
@@ -1423,6 +1425,7 @@ def run_mission(req: Dict[str, Any]) -> Dict[str, Any]:
 
     with _RECEIPT_LOCK:
         MISSION_RECEIPTS[mission_id] = copy.deepcopy(receipt)
+        _LAST_MISSION_ID = mission_id
 
     try:
         persistence_report = persistence.save_mission(receipt)
@@ -1466,6 +1469,15 @@ def get_receipt(mission_id: str) -> Optional[Dict[str, Any]]:
     receipt["meta_served"] = bool(stored.get("meta_served", False))
     receipt["image_served"] = bool(stored.get("image_served", False))
     return receipt
+
+
+def get_latest_receipt() -> Optional[Dict[str, Any]]:
+    """Return the most recently staged mission receipt in this session, or None."""
+    with _RECEIPT_LOCK:
+        latest_id = _LAST_MISSION_ID
+    if not latest_id:
+        return None
+    return get_receipt(latest_id)
 
 
 def approve_receipt(mission_id: str) -> Optional[Dict[str, Any]]:
