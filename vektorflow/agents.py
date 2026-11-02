@@ -1150,18 +1150,44 @@ def stage_image_generation(prompt: str) -> Dict[str, Any]:
 
 
 def approve_image_generation(request_id: str) -> Dict[str, Any]:
-    """Owner approval: run the staged prompt through Muse Image, return the image."""
+    """Owner approval: run the staged prompt through Muse Image, return the image.
+
+    Idempotent: approving an already-generated request returns its stored
+    result without a new provider call (no double charge on double tap).
+    A request with generation already in flight reports busy instead of
+    firing a second call.
+    """
     with _STANDALONE_IMAGE_LOCK:
         record = _STANDALONE_IMAGE_REQUESTS.get(request_id)
-    if record is None:
-        return {"status": "not_found", "image_served": False, "reason": f"No staged image request '{request_id}'."}
+        if record is None:
+            return {"status": "not_found", "image_served": False, "reason": f"No staged image request '{request_id}'."}
+        if record.get("status") == "generated" and record.get("result"):
+            return dict(record["result"])
+        if record.get("status") == "generating":
+            return {
+                "status": "generating",
+                "image_served": False,
+                "request_id": request_id,
+                "reason": "Generation already in progress for this request.",
+            }
+        record["status"] = "generating"
     result = _muse_image_generation_call({}, prompt_override=record["prompt"])
     if result.get("image_served"):
         image = result.get("image") or {}
         generated_at = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "status": "generated",
+            "image_served": True,
+            "request_id": request_id,
+            "model": result.get("model"),
+            "image_url": image.get("url"),
+            "image_b64": image.get("b64_json"),
+            "prompt": record["prompt"],
+        }
         with _STANDALONE_IMAGE_LOCK:
             record["status"] = "generated"
             record["generated_at"] = generated_at
+            record["result"] = dict(payload)
             _GENERATED_IMAGES.append(
                 {
                     "request_id": request_id,
@@ -1173,21 +1199,35 @@ def approve_image_generation(request_id: str) -> Dict[str, Any]:
                 }
             )
             del _GENERATED_IMAGES[: max(0, len(_GENERATED_IMAGES) - _GENERATED_IMAGES_MAX)]
-        return {
-            "status": "generated",
-            "image_served": True,
-            "request_id": request_id,
-            "model": result.get("model"),
-            "image_url": image.get("url"),
-            "image_b64": image.get("b64_json"),
-            "prompt": record["prompt"],
-        }
+        return payload
+    with _STANDALONE_IMAGE_LOCK:
+        record["status"] = "staged_for_approval"
     return {
         "status": "staged",
         "image_served": False,
         "request_id": request_id,
         "reason": result.get("reason", "Image generation did not complete."),
     }
+
+
+def get_staged_image_request(request_id: str) -> Optional[Dict[str, Any]]:
+    """Return a staged image request's public state, or None when unknown.
+
+    Lets a client recover a staged request after a panel reload instead of
+    losing the request_id that lived only in a JS closure.
+    """
+    with _STANDALONE_IMAGE_LOCK:
+        record = _STANDALONE_IMAGE_REQUESTS.get(request_id)
+        if record is None:
+            return None
+        return {
+            "request_id": request_id,
+            "prompt": record.get("prompt"),
+            "status": record.get("status"),
+            "aegis_gate": record.get("aegis_gate"),
+            "staged_at": record.get("staged_at"),
+            "generated_at": record.get("generated_at"),
+        }
 
 
 def get_generated_images() -> List[Dict[str, Any]]:

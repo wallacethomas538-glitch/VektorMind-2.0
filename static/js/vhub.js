@@ -893,7 +893,67 @@
     const promptEl = root.querySelector("#vhub-image-prompt");
     const stageBtn = root.querySelector("#vhub-image-stage");
     const resultEl = root.querySelector("#vhub-image-result");
+    const IMAGE_PENDING_KEY = "vm2-image-pending";
     loadImageHistory();
+
+    // Render the approve UI for a staged request. The button disables itself
+    // on tap (no double-charge), and the request id survives a panel reload
+    // via localStorage until generation completes.
+    function renderApproveUI(reqId, gate, promptText) {
+      resultEl.innerHTML = `
+        <div class="vhub-status-grid">
+          ${card("status", "staged_for_approval", "warn")}
+          ${card("aegis risk", String(gate.risk_score != null ? gate.risk_score : "?"), "good")}
+          ${card("request", esc(reqId), "good")}
+        </div>
+        <p class="hint">Aegis Gate passed. Nothing generated yet &mdash; your approval runs the Muse Image call.</p>
+        <button class="btn primary" type="button" id="vhub-image-approve">Approve &amp; generate</button>
+        <div id="vhub-image-output"></div>`;
+      const approveBtn = root.querySelector("#vhub-image-approve");
+      approveBtn.addEventListener("click", async () => {
+        if (approveBtn.disabled) return;
+        approveBtn.disabled = true;
+        const outEl = root.querySelector("#vhub-image-output");
+        outEl.innerHTML = loading("Generating with Muse Image…");
+        const gen = await request("/api/v1/images/generate/" + encodeURIComponent(reqId) + "/approve", {});
+        const gdata = gen.ok && gen.data ? gen.data : null;
+        if (!gdata || gdata.status !== "generated" || gdata.image_served !== true) {
+          const reason = (gdata && gdata.reason) || ("HTTP " + gen.status);
+          outEl.innerHTML = `<p class="hint">Generation did not complete: ${esc(reason)}</p>`;
+          approveBtn.disabled = false;
+          return;
+        }
+        localStorage.removeItem(IMAGE_PENDING_KEY);
+        let imgHtml = `<p class="hint">Image generated, but no image payload returned.</p>`;
+        if (gdata.image_url) {
+          imgHtml = `<img src="${esc(gdata.image_url)}" alt="${esc(gdata.prompt)}" style="max-width:100%;border-radius:12px;" />`;
+        } else if (gdata.image_b64) {
+          imgHtml = `<img src="data:image/png;base64,${gdata.image_b64}" alt="${esc(gdata.prompt)}" style="max-width:100%;border-radius:12px;" />`;
+        }
+        outEl.innerHTML = `
+          <div class="vhub-status-grid">
+            ${card("status", "generated", "good")}
+            ${card("image_served", "true", "good")}
+            ${card("model", esc(gdata.model || "muse-image-1.0"), "good")}
+          </div>
+          ${imgHtml}
+          <p class="hint">Prompt: ${esc(gdata.prompt || promptText || "")}</p>`;
+        loadImageHistory();
+      });
+    }
+
+    // Resume a staged request stranded by a panel reload.
+    (async () => {
+      const pending = localStorage.getItem(IMAGE_PENDING_KEY);
+      if (!pending) return;
+      const got = await request("/api/v1/images/generate/" + encodeURIComponent(pending));
+      const rec = got.ok && got.data ? got.data : null;
+      if (rec && rec.status === "staged_for_approval") {
+        renderApproveUI(rec.request_id, rec.aegis_gate || {}, rec.prompt);
+      } else {
+        localStorage.removeItem(IMAGE_PENDING_KEY);
+      }
+    })();
 
     stageBtn.addEventListener("click", async () => {
       const prompt = promptEl.value.trim();
@@ -909,43 +969,8 @@
         resultEl.innerHTML = `<p class="hint">Staging failed: ${esc(reason)}</p>`;
         return;
       }
-      const reqId = data.request_id;
-      const gate = data.aegis_gate || {};
-      resultEl.innerHTML = `
-        <div class="vhub-status-grid">
-          ${card("status", "staged_for_approval", "warn")}
-          ${card("aegis risk", String(gate.risk_score != null ? gate.risk_score : "?"), "good")}
-          ${card("request", esc(reqId), "good")}
-        </div>
-        <p class="hint">Aegis Gate passed. Nothing generated yet &mdash; your approval runs the Muse Image call.</p>
-        <button class="btn primary" type="button" id="vhub-image-approve">Approve &amp; generate</button>
-        <div id="vhub-image-output"></div>`;
-      root.querySelector("#vhub-image-approve").addEventListener("click", async () => {
-        const outEl = root.querySelector("#vhub-image-output");
-        outEl.innerHTML = loading("Generating with Muse Image…");
-        const gen = await request("/api/v1/images/generate/" + encodeURIComponent(reqId) + "/approve", {});
-        const gdata = gen.ok && gen.data ? gen.data : null;
-        if (!gdata || gdata.status !== "generated" || gdata.image_served !== true) {
-          const reason = (gdata && gdata.reason) || ("HTTP " + gen.status);
-          outEl.innerHTML = `<p class="hint">Generation did not complete: ${esc(reason)}</p>`;
-          return;
-        }
-        let imgHtml = `<p class="hint">Image generated, but no image payload returned.</p>`;
-        if (gdata.image_url) {
-          imgHtml = `<img src="${esc(gdata.image_url)}" alt="${esc(gdata.prompt)}" style="max-width:100%;border-radius:12px;" />`;
-        } else if (gdata.image_b64) {
-          imgHtml = `<img src="data:image/png;base64,${gdata.image_b64}" alt="${esc(gdata.prompt)}" style="max-width:100%;border-radius:12px;" />`;
-        }
-        outEl.innerHTML = `
-          <div class="vhub-status-grid">
-            ${card("status", "generated", "good")}
-            ${card("image_served", "true", "good")}
-            ${card("model", esc(gdata.model || "muse-image-1.0"), "good")}
-          </div>
-          ${imgHtml}
-          <p class="hint">Prompt: ${esc(gdata.prompt)}</p>`;
-        loadImageHistory();
-      });
+      localStorage.setItem(IMAGE_PENDING_KEY, data.request_id);
+      renderApproveUI(data.request_id, data.aegis_gate || {}, prompt);
     });
   }
 
