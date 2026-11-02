@@ -34,6 +34,7 @@ from .agents import (
     echo,
     echo_presets,
     forecast,
+    get_latest_receipt,
     get_receipt,
     hawk,
     oracle,
@@ -224,19 +225,42 @@ async def system_status():
 
 @app.get("/api/v1/ops", tags=["Cerebrum"])
 async def live_ops():
-    product = analyze_product("Candle Warmer Lamp", "home", selling_price=44.99, product_cost=11.4)
-    campaigns = default_campaigns(product, 220)
-    rook_d = rook(campaigns, 2.0, 220, product["name"])
+    """Live Ops reads the latest staged mission in this session.
+
+    No canned demo product, no fake support queue. If no mission has been
+    staged yet, returns an explicit empty state instead of invented data.
+    """
+    receipt = get_latest_receipt()
+    if receipt is None:
+        return {
+            "live": False,
+            "empty": True,
+            "product": None,
+            "campaigns": None,
+            "pricing": None,
+            "viral": None,
+            "queue": [],
+            "message": "No mission staged yet in this session. Run a mission and Live Ops will read it.",
+        }
+    objective = receipt.get("objective") or {}
+    name = objective.get("product") or "Unnamed product"
+    category = objective.get("category") or "general"
+    price = float(objective.get("target_price") or 44.99)
+    cost = objective.get("product_cost_input")
+    budget = float(objective.get("ad_budget") or 100)
+    product = analyze_product(name, category, selling_price=price, product_cost=cost)
+    campaigns = default_campaigns(product, budget)
+    rook_d = rook(campaigns, 2.0, budget, product["name"])
     return {
+        "live": True,
+        "empty": False,
+        "mission_id": receipt.get("mission_id"),
         "product": product["name"],
         "campaigns": rook_d,
         "pricing": arbiter(product["name"], product["cost"], 5.5),
         "viral": viral(product["name"]),
-        "queue": [
-            {"from": "Maya R.", "intent": "shipping", "preview": "Where is my warmer?", "age": "6m"},
-            {"from": "Chris P.", "intent": "returns", "preview": "Bulb arrived cracked", "age": "19m"},
-            {"from": "Priya S.", "intent": "product", "preview": "Will this work with soy wax?", "age": "34m"},
-        ],
+        "queue": [],
+        "queue_note": "No live support feed connected. Support items appear here when a real feed is wired.",
     }
 
 

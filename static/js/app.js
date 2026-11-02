@@ -421,6 +421,10 @@ async function loadOps() {
   board.innerHTML = `<p class="hint">Reading the floor…</p>`;
   try {
     const data = await api("/api/v1/ops");
+    if (data && data.empty) {
+      board.innerHTML = `<div class="panel"><p class="eyebrow">Live Ops</p><h3>No mission staged yet</h3><p class="hint">${esc(data.message || "Run a mission and Live Ops will read it.")}</p><button class="btn primary" type="button" data-nav="mission">Run a mission</button></div>`;
+      return;
+    }
     board.innerHTML = `
       <div class="panel">
         <p class="eyebrow">Rook</p>
@@ -436,7 +440,7 @@ async function loadOps() {
         <div class="panel">
           <p class="eyebrow">Aegis</p>
           <h3>Support queue</h3>
-          <ul class="queue">${(data.queue||[]).map(q=>`<li><b>${esc(q.from)}</b> · <span class="tag">${esc(q.intent)}</span><br>${esc(q.preview)}<br><small>${esc(q.age)}</small></li>`).join("")}</ul>
+          <ul class="queue">${(data.queue||[]).map(q=>`<li><b>${esc(q.from)}</b> · <span class="tag">${esc(q.intent)}</span><br>${esc(q.preview)}<br><small>${esc(q.age)}</small></li>`).join("") || `<li><small>${esc(data.queue_note || "No queue items.")}</small></li>`}</ul>
         </div>
       </div>
       <div class="panel">
