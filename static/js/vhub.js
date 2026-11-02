@@ -850,6 +850,24 @@
     });
   }
 
+  async function loadImageHistory() {
+    const box = document.querySelector("#vhub-image-history");
+    if (!box) return;
+    const result = await request("/api/v1/images/history");
+    const images = (result.ok && result.data && result.data.images) || [];
+    if (!images.length) {
+      box.innerHTML = `<p class="hint">No images generated yet this session. Stage a prompt above and approve it.</p>`;
+      return;
+    }
+    box.innerHTML = `<div class="vhub-gallery">` + images.map((img) => {
+      const src = img.image_url
+        ? esc(img.image_url)
+        : (img.image_b64 ? "data:image/png;base64," + img.image_b64 : "");
+      const tag = src ? `<img src="${src}" alt="${esc(img.prompt)}" loading="lazy" />` : `<p class="hint">No image data.</p>`;
+      return `<figure class="vhub-gallery-item">${tag}<figcaption><small>${esc(img.prompt)}</small><br><small class="hint">${esc(img.generated_at || "")} · ${esc(img.model || "")}</small></figcaption></figure>`;
+    }).join("") + `</div>`;
+  }
+
   async function loadMuseImage(root) {
     const esc = (s) => String(s == null ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -865,11 +883,16 @@
           placeholder="Describe the image… e.g. a ceramic coating bottle on a car hood at sunset"></textarea>
         <button class="btn primary" type="button" id="vhub-image-stage">Stage image request</button>
       </div>
-      <div id="vhub-image-result"></div>`;
+      <div id="vhub-image-result"></div>
+      <div class="vhub-note-card">
+        <p class="eyebrow">Generated images · this session</p>
+        <div id="vhub-image-history"><p class="hint">Loading…</p></div>
+      </div>`;
 
     const promptEl = root.querySelector("#vhub-image-prompt");
     const stageBtn = root.querySelector("#vhub-image-stage");
     const resultEl = root.querySelector("#vhub-image-result");
+    loadImageHistory();
 
     stageBtn.addEventListener("click", async () => {
       const prompt = promptEl.value.trim();
@@ -920,6 +943,7 @@
           </div>
           ${imgHtml}
           <p class="hint">Prompt: ${esc(gdata.prompt)}</p>`;
+        loadImageHistory();
       });
     });
   }
