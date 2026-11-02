@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import secrets
 import socket
@@ -9,7 +10,7 @@ from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Security
@@ -26,6 +27,7 @@ from .agents import (
     aegis_chat,
     aegis_review,
     approve_image_generation,
+    chat_with_spark,
     approve_receipt,
     arbiter,
     architect,
@@ -384,6 +386,24 @@ async def images_generate_approve(request_id: str, _: str = Depends(verify_api_k
     result = approve_image_generation(request_id)
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail=result.get("reason"))
+    return result
+
+
+@app.post("/api/v1/chat", tags=["Muse Spark"])
+async def chat_turn(payload: Dict[str, Any], _: str = Depends(verify_api_key)):
+    """Live conversation with Muse Spark. Each message is a real Meta call."""
+    _ensure_tools_running()
+    message = str(payload.get("message") or "").strip()[:2000]
+    if not message:
+        raise HTTPException(status_code=422, detail="message is required")
+    raw_history = payload.get("history") or []
+    turns = []
+    for m in raw_history[-20:]:
+        if isinstance(m, dict) and str(m.get("content") or "").strip():
+            turns.append({"role": "assistant" if m.get("role") == "assistant" else "user",
+                          "content": str(m.get("content"))[:2000]})
+    turns.append({"role": "user", "content": message})
+    result = await asyncio.to_thread(chat_with_spark, turns)
     return result
 
 
