@@ -1067,6 +1067,8 @@ def _muse_image_generation_call(objective: Dict[str, Any], prompt_override: Opti
 # then approve (owner tap runs the real Muse Image call).
 _STANDALONE_IMAGE_REQUESTS: Dict[str, Dict[str, Any]] = {}
 _STANDALONE_IMAGE_LOCK = threading.Lock()
+_GENERATED_IMAGES: List[Dict[str, Any]] = []
+_GENERATED_IMAGES_MAX = 20
 
 
 def stage_image_generation(prompt: str) -> Dict[str, Any]:
@@ -1108,9 +1110,21 @@ def approve_image_generation(request_id: str) -> Dict[str, Any]:
     result = _muse_image_generation_call({}, prompt_override=record["prompt"])
     if result.get("image_served"):
         image = result.get("image") or {}
+        generated_at = datetime.now(timezone.utc).isoformat()
         with _STANDALONE_IMAGE_LOCK:
             record["status"] = "generated"
-            record["generated_at"] = datetime.now(timezone.utc).isoformat()
+            record["generated_at"] = generated_at
+            _GENERATED_IMAGES.append(
+                {
+                    "request_id": request_id,
+                    "prompt": record["prompt"],
+                    "model": result.get("model"),
+                    "image_url": image.get("url"),
+                    "image_b64": image.get("b64_json"),
+                    "generated_at": generated_at,
+                }
+            )
+            del _GENERATED_IMAGES[: max(0, len(_GENERATED_IMAGES) - _GENERATED_IMAGES_MAX)]
         return {
             "status": "generated",
             "image_served": True,
@@ -1126,6 +1140,12 @@ def approve_image_generation(request_id: str) -> Dict[str, Any]:
         "request_id": request_id,
         "reason": result.get("reason", "Image generation did not complete."),
     }
+
+
+def get_generated_images() -> List[Dict[str, Any]]:
+    """Return the session's generated-image history, newest first."""
+    with _STANDALONE_IMAGE_LOCK:
+        return list(reversed(_GENERATED_IMAGES))
 
 
 class KillSwitchEngaged(RuntimeError):

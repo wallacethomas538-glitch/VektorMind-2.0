@@ -34,6 +34,7 @@ from .agents import (
     echo,
     echo_presets,
     forecast,
+    get_generated_images,
     get_latest_receipt,
     get_receipt,
     hawk,
@@ -384,6 +385,12 @@ async def images_generate_approve(request_id: str, _: str = Depends(verify_api_k
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail=result.get("reason"))
     return result
+
+
+@app.get("/api/v1/images/history", tags=["DaVinci"])
+async def images_history(_: str = Depends(verify_api_key)):
+    """Session gallery: every image generated through the approve flow, newest first."""
+    return {"images": get_generated_images(), "count": len(get_generated_images())}
 
 
 @app.post("/api/v1/receptionist/draft", tags=["Aegis"])
