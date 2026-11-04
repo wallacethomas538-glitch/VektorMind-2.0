@@ -255,7 +255,7 @@ def rook(
     product_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not campaigns:
-        product = analyze_product(product_name or "Candle Warmer Lamp")
+        product = analyze_product(product_name or "Unnamed product")
         campaigns = default_campaigns(product, total_daily_budget)
     actions = []
     spend = 0.0

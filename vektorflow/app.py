@@ -55,7 +55,7 @@ from .agents import (
     viral,
 )
 from .drafts import layout_preview, mcp_registry, pollinations_ad_draft, receptionist_draft
-from .intelligence import analyze_product, default_campaigns, seed_for
+from .intelligence import analyze_product, default_campaigns
 from .models import (
     AdCampaign,
     AdManagerRequest,
@@ -201,29 +201,19 @@ async def meta_diagnostics():
 
 @app.get("/api/v1/system", tags=["Cerebrum"])
 async def system_status():
-    rng = seed_for("ops-feed", datetime.now(timezone.utc).strftime("%Y-%m-%d-%H"))
-    feed = [
-        {"agent": "Hawk", "text": "Flagged a rising Home & Decor SKU — opportunity 74.", "t": "4m"},
-        {"agent": "Rook", "text": "Scaled META-181 +20%. Blended ROAS holding 2.4x.", "t": "11m"},
-        {"agent": "ViralDet", "text": "TikTok velocity 412 on candle-warmer audio.", "t": "27m"},
-        {"agent": "Aegis", "text": "Recovered a $45 cart. Sequence step 2 fired.", "t": "41m"},
-        {"agent": "Sentinel", "text": "Cookie banner contrast check passed.", "t": "1h"},
-        {"agent": "Shadow", "text": "Competitor dropped the Mini by $3. Watching.", "t": "2h"},
-    ]
-    rng.shuffle(feed)
     return {
         "version": __version__,
         "demo_mode": DEMO_MODE or not API_KEY,
         "agents": AGENT_ROSTER,
         "kpis": {
             "agents_online": 15,
-            "open_missions": 1,
-            "blended_roas": 2.41,
-            "compliance": 94,
-            "viral_heat": 412,
+            "open_missions": 0,
+            "blended_roas": 0,
+            "compliance": 0,
+            "viral_heat": 0,
         },
-        "feed": feed[:6],
-        "demo_product": "Candle Warmer Lamp",
+        "feed": [],
+        "demo_product": None,
     }
 
 

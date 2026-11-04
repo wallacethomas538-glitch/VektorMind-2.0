@@ -143,23 +143,23 @@ function openAgent(id) {
 }
 
 function workstation(agent) {
-  const commonName = `<label>Product name<input name="product_name" value="Candle Warmer Lamp" required /></label>`;
+  const commonName = `<label>Product name<input name="product_name" value="" required /></label>`;
   const forms = {
-    hawk: `${commonName}<label>Category<input name="category" value="home" /></label><label>Keywords<input name="keywords" value="cozy, halogen, dorm-safe" /></label>`,
-    smaug: `${commonName}<label>Target price<input name="target_selling_price" type="number" step="0.01" value="44.99" /></label>`,
-    architect: `${commonName}<label>Features<input name="product_features" value="halogen, dimmable" /></label><label>Price<input name="product_price" type="number" step="0.01" value="44.99" /></label>`,
-    davinci: `${commonName}<label>Features<input name="product_features" value="halogen, dimmable" /></label><label>Price<input name="product_price" type="number" step="0.01" value="44.99" /></label>`,
-    rook: `${commonName}<label>Daily budget<input name="total_daily_budget" type="number" value="200" /></label><p class="hint">Leave campaigns empty and Rook will read the live book.</p>`,
-    aegis: `<label>Customer message<textarea name="message" rows="3">Where is my order?</textarea></label>${commonName}`,
-    arbiter: `${commonName}<label>Unit cost<input name="product_cost" type="number" step="0.01" value="11.40" /></label><label>Shipping<input name="shipping_cost" type="number" step="0.01" value="5.50" /></label>`,
-    sentinel: `<label>Store name<input name="store_name" value="Glow House" /></label><label>Store URL<input name="store_url" value="glowhouse.store" /></label>`,
-    echo: `<label>Script<textarea name="text" rows="4">Your dorm says no open flames. This lamp didn't get the memo — it just skipped the fire.</textarea></label><label>Voice<select name="voice_name"><option>Kore</option><option>Puck</option><option>Charon</option><option>Fenrir</option><option>Zephyr</option></select></label>`,
-    cerebrum: `<p class="hint">Cerebrum only speaks after a full mission. Launch from the brief, or load the sample.</p>`,
+    hawk: `${commonName}<label>Category<input name="category" value="" /></label><label>Keywords<input name="keywords" value="" /></label>`,
+    smaug: `${commonName}<label>Target price<input name="target_selling_price" type="number" step="0.01" value="" /></label>`,
+    architect: `${commonName}<label>Features<input name="product_features" value="" /></label><label>Price<input name="product_price" type="number" step="0.01" value="" /></label>`,
+    davinci: `${commonName}<label>Features<input name="product_features" value="" /></label><label>Price<input name="product_price" type="number" step="0.01" value="" /></label>`,
+    rook: `${commonName}<label>Daily budget<input name="total_daily_budget" type="number" value="" /></label><p class="hint">Leave campaigns empty and Rook will read the live book.</p>`,
+    aegis: `<label>Customer message<textarea name="message" rows="3"></textarea></label>${commonName}`,
+    arbiter: `${commonName}<label>Unit cost<input name="product_cost" type="number" step="0.01" value="" /></label><label>Shipping<input name="shipping_cost" type="number" step="0.01" value="" /></label>`,
+    sentinel: `<label>Store name<input name="store_name" value="" /></label><label>Store URL<input name="store_url" value="" /></label>`,
+    echo: `<label>Script<textarea name="text" rows="4"></textarea></label><label>Voice<select name="voice_name"><option>Kore</option><option>Puck</option><option>Charon</option><option>Fenrir</option><option>Zephyr</option></select></label>`,
+    cerebrum: `<p class="hint">Cerebrum only speaks after a full mission. Launch from the brief.</p>`,
     viral: `${commonName}`,
-    shadow: `<label>Competitor URL<input name="competitor_url" value="https://glowhaus.co" /></label>${commonName}`,
-    bundler: `<label>Main product<input name="main_product" value="Candle Warmer Lamp" /></label><label>Budget<input name="budget" type="number" value="45" /></label>`,
-    pivot: `<label>Competitor product URL<input name="competitor_product_url" value="https://glowhaus.co/lamp" /></label>${commonName}`,
-    oracle: `${commonName}<div class="row3"><label>Cost<input name="product_cost" type="number" step="0.01" value="11.40" /></label><label>Price<input name="selling_price" type="number" step="0.01" value="44.99" /></label><label>Ad budget<input name="ad_budget" type="number" value="100" /></label></div><label>Niche<input name="niche" value="home" /></label>`,
+    shadow: `<label>Competitor URL<input name="competitor_url" value="" /></label>${commonName}`,
+    bundler: `<label>Main product<input name="main_product" value="" /></label><label>Budget<input name="budget" type="number" value="" /></label>`,
+    pivot: `<label>Competitor product URL<input name="competitor_product_url" value="" /></label>${commonName}`,
+    oracle: `${commonName}<div class="row3"><label>Cost<input name="product_cost" type="number" step="0.01" value="" /></label><label>Price<input name="selling_price" type="number" step="0.01" value="" /></label><label>Ad budget<input name="ad_budget" type="number" value="" /></label></div><label>Niche<input name="niche" value="" /></label>`,
   };
   const extra = agent.id === "cerebrum"
     ? `<button class="btn primary" type="button" data-nav="mission">Open mission brief</button>`
@@ -314,7 +314,7 @@ function renderDossier(mission) {
   const wrap = $("#dossier");
   if (!mission) {
     wrap.className = "dossier empty";
-    wrap.innerHTML = `<div class="empty-state"><p class="eyebrow">Dossier</p><h2>No mission on the table</h2><p>Launch a product or load the sample Candle Warmer Lamp read.</p><button class="btn primary" data-nav="mission">Launch</button></div>`;
+    wrap.innerHTML = `<div class="empty-state"><p class="eyebrow">Dossier</p><h2>No mission on the table</h2><p>Launch a mission to begin.</p><button class="btn primary" data-nav="mission">Launch</button></div>`;
     bindNav(wrap);
     return;
   }
@@ -403,19 +403,6 @@ async function runMission(payload) {
 
 function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-async function loadSample() {
-  await runMission({
-    product_name: "Candle Warmer Lamp",
-    category: "home",
-    features: ["halogen", "dimmable", "dorm-safe"],
-    keywords: ["cozy", "halogen"],
-    selling_price: 44.99,
-    product_cost: 11.4,
-    ad_budget: 100,
-    competitor_url: "https://glowhaus.co",
-  });
-}
-
 async function loadOps() {
   const board = $("#ops-board");
   board.innerHTML = `<p class="hint">Reading the floor…</p>`;
@@ -475,7 +462,6 @@ async function init() {
   boot();
   clock();
   bindNav();
-  $("#btn-sample")?.addEventListener("click", loadSample);
   $("#ops-refresh")?.addEventListener("click", loadOps);
   $("#mission-form")?.addEventListener("submit", (e) => {
     e.preventDefault();

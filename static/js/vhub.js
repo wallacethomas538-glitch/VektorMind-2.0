@@ -573,7 +573,7 @@
     root.innerHTML = `
       <form id="vhub-mission-form" class="form vhub-form">
         <label>Mission sentence
-          <input name="sentence" required maxlength="240" value="Launch a dorm-safe candle warmer lamp at $44.99 for solo sellers" />
+          <input name="sentence" required maxlength="240" value="" />
         </label>
         <div class="row">
           <label>Category
