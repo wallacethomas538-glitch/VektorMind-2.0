@@ -40,6 +40,7 @@ from .agents import (
     get_staged_image_request,
     get_latest_receipt,
     get_receipt,
+    list_receipts,
     hawk,
     oracle,
     pivot,
@@ -310,6 +311,19 @@ async def kill_switch(
         else "Kill switch released. Draft-only tools restored; live actions stay blocked."
     )
     return {"ok": True, "kill_switch": state, "message": message}
+
+
+@app.get("/api/v1/receipts", tags=["Cerebrum"])
+async def list_staged_receipts(_: str = Depends(verify_api_key)):
+    """List every staged mission receipt in this session, newest first."""
+    try:
+        receipts = list_receipts()
+    except PersistenceError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "persistence_unavailable", "persistence": exc.report},
+        ) from None
+    return {"receipts": receipts}
 
 
 @app.get("/api/v1/receipt/{mission_id}", tags=["Cerebrum"])
