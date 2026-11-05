@@ -554,7 +554,9 @@ td { padding: 10px 8px; border-bottom: 1px solid #1a2130; }
   .app { grid-template-columns: 1fr; grid-template-areas: "top" "stage" "ticker"; }
   .rail { display: none; }
   .grid-15 { grid-template-columns: repeat(2, 1fr); }
-  .top-nav { display: none; }
+  .top-nav { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .top-nav button { flex: 0 0 auto; white-space: nowrap; }
   .form .row, .form .row3 { grid-template-columns: 1fr; }
   .feed li { grid-template-columns: 1fr; }
 }
