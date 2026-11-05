@@ -1164,6 +1164,10 @@
     event.stopPropagation();
     closePanel();
   });
+  document.getElementById("vhub-back")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closePanel();
+  });
   section.addEventListener("click", (event) => {
     if (event.target === section) closePanel();
   });
