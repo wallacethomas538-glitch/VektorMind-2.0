@@ -167,6 +167,33 @@
     }
   }
 
+  async function loadStaging() {
+    const box = $("#mc-staging");
+    if (!box) return;
+    try {
+      const result = await call("/api/v1/receipts", null);
+      const receipts = (result.ok && result.data && result.data.receipts) || [];
+      const pending = receipts.filter((r) => r.status !== "approved");
+      if (!pending.length) {
+        box.innerHTML = '<p class="hint">No missions staged yet. Run a mission and it will wait here for your tap.</p>';
+        return;
+      }
+      box.innerHTML = pending.map((r) => `
+        <div class="mc-stage-row" style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div class="mc-kv"><span>mission</span><code>${esc(r.mission_id || "")}</code></div>
+          <div class="mc-kv"><span>status</span><b>${esc(r.status || "")}</b></div>
+          <div class="mc-kv"><span>plan</span><b>${(r.plan || []).length} steps</b></div>
+          <div class="mc-kv"><span>evidence</span><b>${(r.evidence || []).length} draft items</b></div>
+          <button class="btn primary" type="button" data-stage-approve="${esc(r.mission_id || "")}" style="width:100%;margin-top:10px;padding:14px;font-size:16px;">Approve mission</button>
+        </div>`).join("");
+      box.querySelectorAll("[data-stage-approve]").forEach((btn) => {
+        btn.addEventListener("click", () => approveMission(btn.dataset.stageApprove, btn));
+      });
+    } catch (err) {
+      box.innerHTML = `<p class="hint">Staging unavailable · ${esc(err.message)}</p>`;
+    }
+  }
+
   async function approveMission(missionId, button) {
     if (mc.busy) return;
     mc.busy = true;
@@ -176,6 +203,7 @@
       const result = await call(`/api/v1/receipt/${encodeURIComponent(missionId)}/approve`, {});
       if (result.ok) {
         renderReceipt(result.data);
+        loadStaging();
         try {
           const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || "null");
           if (cached) {
@@ -234,6 +262,7 @@
       const receiptResult = await call(`/api/v1/receipt/${encodeURIComponent(result.data.mission_id)}`);
       if (receiptResult.ok) {
         renderReceipt(receiptResult.data);
+        loadStaging();
         sessionStorage.setItem(CACHE_KEY, JSON.stringify({
           mission: result.data,
           receipt: receiptResult.data,
@@ -331,6 +360,7 @@
       runMission();
     });
     loadHealth();
+    loadStaging();
     restoreCache();
   }
 

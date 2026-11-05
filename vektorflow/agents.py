@@ -1588,6 +1588,18 @@ def get_latest_receipt() -> Optional[Dict[str, Any]]:
     return get_receipt(latest_id)
 
 
+def list_receipts() -> List[Dict[str, Any]]:
+    """Return every staged mission receipt in this session, newest first."""
+    with _RECEIPT_LOCK:
+        ids = list(MISSION_RECEIPTS.keys())
+    out = []
+    for mid in reversed(ids):
+        r = get_receipt(mid)
+        if r is not None:
+            out.append(r)
+    return out
+
+
 def approve_receipt(mission_id: str) -> Optional[Dict[str, Any]]:
     """Manually approve a staged mission's pending approvals.
 
