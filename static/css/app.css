@@ -1344,10 +1344,12 @@ body.vhub-open { overflow: hidden; }
   .vhub-hud-panel { display: none; }
 }
 @media (max-width: 820px) {
-  .vhub-top { padding: 10px 12px; }
+  .vhub-top { padding: 10px 12px; flex-wrap: wrap; }
   .vhub-top-actions .pill { display: none; }
   .vhub-top-actions .hum-toggle { padding: 5px 9px; font-size: 9px; gap: 5px; }
   .vhub-top-actions .hum-toggle::before { width: 5px; height: 5px; }
+  .vhub-top-actions { flex-wrap: wrap; justify-content: flex-end; }
+  #vhub-classic { display: inline-flex !important; flex: 0 0 auto; }
   .vhub-stage { inset: 56px 0 108px; }
   .vhub-panel { width: 104px; min-height: 72px; padding: 10px 11px; border-radius: 13px; }
   .vhub-panel-name { font-size: 12.5px; }
