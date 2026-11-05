@@ -158,7 +158,11 @@
       <div class="mc-kv"><span>persistence</span><b>${esc(receipt.persistence?.status || "unconfigured")}</b></div>
       <div class="mc-kv"><span>approvals</span><b>${approved ? `approved by ${esc(receipt.approved_by || "Wallace")}` : `${pending} pending`}</b></div>
       ${approved
-        ? `<p class="hint">Approved by Wallace. Drafts stay draft-only — nothing was published, sent, or served.</p>`
+        ? `<div class="mc-approved" style="border:2px solid var(--good,#22c55e);border-radius:12px;padding:14px;margin-top:12px;">
+             <p class="eyebrow">Approval confirmed</p>
+             <h3 style="margin:6px 0;">Mission <code>${esc(receipt.mission_id)}</code> approved</h3>
+             <p class="hint">Approved by ${esc(receipt.approved_by || "Wallace")}. Drafts stay draft-only — nothing was published, sent, or served.</p>
+           </div>`
         : `<button class="btn primary" type="button" id="mc-approve" data-mission="${esc(receipt.mission_id)}" style="width:100%;margin-top:12px;padding:14px;font-size:16px;">Approve mission</button>
            <p class="hint">Staged for Wallace approval. Approving records your decision only — no publish, price change, send, provider call, deploy, or money move.</p>`}`;
     const approveBtn = $("#mc-approve");
