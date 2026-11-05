@@ -1204,7 +1204,12 @@
     layout();
   });
 
-  document.body.classList.add("vhub-open");
+  const skipHub = new URLSearchParams(window.location.search).get("classic") === "1";
+  if (skipHub) {
+    showClassic("mission-command");
+  } else {
+    document.body.classList.add("vhub-open");
+  }
   setupParticles();
   layout();
   startLoop();
